@@ -1,0 +1,261 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// -----------------------------------------------------------
+// Mesa (Table) — physical dining table
+// estado codes: L=Libre, O=Ocupada, P=Pagando, C=Cerrada
+// -----------------------------------------------------------
+model Mesa {
+  id          String   @id @default(uuid())
+  nombre      String
+  capacidad   Int      @default(4)
+  estado      String   @default("L")   // L | O | P | C
+  ubicacion   String?
+  activa      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  ordenes     Orden[]
+
+  @@map("mesas")
+}
+
+// -----------------------------------------------------------
+// Orden (Order) — open table order
+// estado codes: A=Abierta, C=Cerrada, X=Cancelada
+// -----------------------------------------------------------
+model Orden {
+  id          String        @id @default(uuid())
+  mesaId      String
+  mesa        Mesa          @relation(fields: [mesaId], references: [id])
+  estado      String        @default("A")  // A | C | X
+  descripcion String?
+  mesero      String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  cerradaAt   DateTime?
+
+  detalles    OrdenDetalle[]
+  documentos  Documento[]
+
+  @@index([mesaId])
+  @@map("ordenes")
+}
+
+// -----------------------------------------------------------
+// OrdenDetalle (Order Item)
+// -----------------------------------------------------------
+model OrdenDetalle {
+  id                  String   @id @default(uuid())
+  ordenId             String
+  orden               Orden    @relation(fields: [ordenId], references: [id], onDelete: Cascade)
+  productoId          String?
+  producto            Producto? @relation(fields: [productoId], references: [id], onDelete: SetNull)
+  nombre              String
+  cantidad            Decimal  @db.Decimal(10, 2) @default(1)
+  precio              Decimal  @db.Decimal(10, 2)
+  porcentajeIva       Int      @default(15)
+  porcentajeDescuento Decimal  @db.Decimal(5, 2) @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([ordenId])
+  @@map("orden_detalles")
+}
+
+// -----------------------------------------------------------
+// Documento — pre-bill (PRE) or invoice (FAC)
+// Mirrors Contifico's documento model exactly.
+// estado codes: P=Pendiente, C=Cobrado, A=Anulado, F=Facturado
+// -----------------------------------------------------------
+model Documento {
+  id               String   @id @default(uuid())
+  ordenId          String?
+  orden            Orden?   @relation(fields: [ordenId], references: [id])
+  personaId        String?
+  persona          Persona? @relation(fields: [personaId], references: [id])
+
+  // Contifico-compatible fields
+  pos              String?          // API token UUID from Contifico
+  fechaEmision     String           // DD/MM/YYYY
+  tipoDocumento    String           // PRE | FAC
+  tipoRegistro     String           @default("CLI")
+  estado           String           @default("P")  // P | C | A | F
+  electronico      Boolean          @default(true)
+  descripcion      String?
+
+  // Tax totals (Ecuador 15% IVA)
+  subtotal0        Decimal          @db.Decimal(10, 2) @default(0)
+  subtotal15       Decimal          @db.Decimal(10, 2) @default(0)
+  iva              Decimal          @db.Decimal(10, 2) @default(0)
+  servicio         Decimal          @db.Decimal(10, 2) @default(0)
+  total            Decimal          @db.Decimal(10, 2) @default(0)
+
+  // SRI mock fields (electronic invoice)
+  autorizacionSRI  String?
+  urlRide          String?
+  urlXml           String?
+  claveAcceso      String?
+
+  // Snapshot of cliente at time of document creation
+  clienteCedula    String?
+  clienteRuc       String?
+  clienteRazonSocial String?
+  clienteTipo      String?          // N=natural, J=jurídica
+  clienteEmail     String?
+  clienteTelefonos String?
+  clienteDireccion String?
+  clienteExtranjero Boolean?        @default(false)
+
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  cobros           Cobro[]
+  detallesDoc      DocumentoDetalle[]
+
+  @@index([tipoDocumento])
+  @@index([fechaEmision])
+  @@index([clienteCedula])
+  @@map("documentos")
+}
+
+// -----------------------------------------------------------
+// DocumentoDetalle — line items on a documento
+// -----------------------------------------------------------
+model DocumentoDetalle {
+  id                  String     @id @default(uuid())
+  documentoId         String
+  documento           Documento  @relation(fields: [documentoId], references: [id], onDelete: Cascade)
+  productoId          String?
+  cantidad            Decimal    @db.Decimal(10, 2)
+  precio              Decimal    @db.Decimal(10, 2)
+  porcentajeIva       Int        @default(15)
+  porcentajeDescuento Decimal    @db.Decimal(5, 2) @default(0)
+  baseCero            Decimal    @db.Decimal(10, 2) @default(0)
+  baseGravable        Decimal    @db.Decimal(10, 2) @default(0)
+  baseNoGravable      Decimal    @db.Decimal(10, 2) @default(0)
+  createdAt           DateTime   @default(now())
+
+  @@index([documentoId])
+  @@map("documento_detalles")
+}
+
+// -----------------------------------------------------------
+// Cobro — payment record on a documento
+// forma_cobro codes: EF=Efectivo, TC=Tarjeta Crédito, TD=Débito, TR=Transferencia, CH=Cheque
+// -----------------------------------------------------------
+model Cobro {
+  id          String     @id @default(uuid())
+  documentoId String
+  documento   Documento  @relation(fields: [documentoId], references: [id], onDelete: Cascade)
+  formaCobro  String     // EF | TC | TD | TR | CH
+  monto       Decimal    @db.Decimal(10, 2)
+  referencia  String?
+  createdAt   DateTime   @default(now())
+
+  @@index([documentoId])
+  @@map("cobros")
+}
+
+// -----------------------------------------------------------
+// Persona — customer / contact (mirrors Contifico persona)
+// -----------------------------------------------------------
+model Persona {
+  id              String     @id @default(uuid())
+  cedula          String?    @unique
+  ruc             String?
+  razonSocial     String
+  tipo            String     @default("N")  // N=natural, J=jurídica
+  email           String?
+  telefonos       String?
+  direccion       String?
+  esExtranjero    Boolean    @default(false)
+  activo          Boolean    @default(true)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  documentos      Documento[]
+
+  @@index([cedula])
+  @@map("personas")
+}
+
+// -----------------------------------------------------------
+// Producto — menu catalog item
+// -----------------------------------------------------------
+model Producto {
+  id              String         @id @default(uuid())
+  codigo          String?        @unique
+  nombre          String
+  descripcion     String?
+  precio          Decimal        @db.Decimal(10, 2)
+  categoriaId     String?
+  categoria       Categoria?     @relation(fields: [categoriaId], references: [id])
+  porcentajeIva   Int            @default(15)
+  disponible      Boolean        @default(true)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  detallesOrden   OrdenDetalle[]
+
+  @@index([categoriaId])
+  @@map("productos")
+}
+
+// -----------------------------------------------------------
+// Categoria — product category
+// -----------------------------------------------------------
+model Categoria {
+  id        String     @id @default(uuid())
+  nombre    String
+  orden     Int        @default(0)
+  activa    Boolean    @default(true)
+  createdAt DateTime   @default(now())
+
+  productos Producto[]
+
+  @@map("categorias")
+}
+
+// -----------------------------------------------------------
+// WebhookLog — incoming webhook events (MesitaQR)
+// -----------------------------------------------------------
+model WebhookLog {
+  id          String   @id @default(uuid())
+  fuente      String   // mesitaqr | contifico
+  evento      String
+  payload     Json
+  procesado   Boolean  @default(false)
+  error       String?
+  createdAt   DateTime @default(now())
+
+  @@map("webhook_logs")
+}
+
+// -----------------------------------------------------------
+// MesitaqrSession — active QR payment sessions
+// -----------------------------------------------------------
+model MesitaqrSession {
+  id          String   @id @default(uuid())
+  sessionId   String   @unique @default(uuid())
+  mesaId      String
+  ordenId     String
+  montoTotal  Decimal  @db.Decimal(10, 2)
+  qrCode      String   @db.Text
+  qrUrl       String
+  estado      String   @default("pendiente") // pendiente | pagado | expirado
+  expiraEn    DateTime
+  paidAt      DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([sessionId])
+  @@index([mesaId])
+  @@map("mesitaqr_sessions")
+}

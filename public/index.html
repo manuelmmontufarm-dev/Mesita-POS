@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>POS Mesita Demo — Dashboard</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }
+    header { background: #1e293b; border-bottom: 1px solid #334155; padding: 16px 24px; display: flex; align-items: center; gap: 16px; }
+    header h1 { font-size: 1.25rem; font-weight: 700; color: #f1f5f9; }
+    header .badge { background: #10b981; color: white; font-size: 0.7rem; padding: 2px 8px; border-radius: 9999px; font-weight: 600; }
+    .api-key-bar { background: #1e293b; border-bottom: 1px solid #334155; padding: 10px 24px; display: flex; align-items: center; gap: 12px; }
+    .api-key-bar label { font-size: 0.85rem; color: #94a3b8; }
+    .api-key-bar input { background: #0f172a; border: 1px solid #475569; color: #e2e8f0; padding: 6px 12px; border-radius: 6px; font-family: monospace; font-size: 0.85rem; width: 280px; }
+    .api-key-bar button { background: #3b82f6; color: white; border: none; padding: 6px 16px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
+    .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 16px; margin-bottom: 32px; }
+    .mesa-card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 16px; text-align: center; cursor: pointer; transition: all 0.15s; position: relative; }
+    .mesa-card:hover { border-color: #3b82f6; background: #1e3a5f; }
+    .mesa-card .mesa-name { font-weight: 700; font-size: 1rem; margin-bottom: 4px; }
+    .mesa-card .mesa-info { font-size: 0.75rem; color: #94a3b8; }
+    .mesa-card .estado-badge { position: absolute; top: 8px; right: 8px; font-size: 0.65rem; font-weight: 700; padding: 2px 6px; border-radius: 4px; }
+    .estado-L { background: #064e3b; color: #6ee7b7; }
+    .estado-O { background: #1e3a5f; color: #93c5fd; }
+    .estado-P { background: #451a03; color: #fbbf24; }
+    .estado-C { background: #1f2937; color: #6b7280; }
+    .section-title { font-size: 0.85rem; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px; }
+    .panel { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 20px; margin-bottom: 24px; }
+    .panel h2 { font-size: 1rem; font-weight: 600; margin-bottom: 16px; color: #f1f5f9; }
+    .form-row { display: flex; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+    .form-row input, .form-row select { background: #0f172a; border: 1px solid #475569; color: #e2e8f0; padding: 8px 12px; border-radius: 6px; font-size: 0.875rem; flex: 1; min-width: 140px; }
+    .btn { padding: 8px 18px; border-radius: 6px; border: none; font-size: 0.875rem; cursor: pointer; font-weight: 600; }
+    .btn-primary { background: #3b82f6; color: white; }
+    .btn-success { background: #10b981; color: white; }
+    .btn-danger { background: #ef4444; color: white; }
+    .btn-outline { background: transparent; color: #94a3b8; border: 1px solid #475569; }
+    .output { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 16px; font-family: monospace; font-size: 0.8rem; white-space: pre-wrap; max-height: 320px; overflow-y: auto; color: #a3e635; }
+    .qr-section { display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; }
+    .qr-img { background: white; padding: 8px; border-radius: 8px; }
+    .qr-img img { display: block; max-width: 200px; }
+    .status-pill { display: inline-block; padding: 3px 10px; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; }
+    .pill-pendiente { background: #451a03; color: #fbbf24; }
+    .pill-pagado { background: #064e3b; color: #6ee7b7; }
+    .pill-expirado { background: #1f2937; color: #6b7280; }
+    .tabs { display: flex; gap: 8px; margin-bottom: 24px; border-bottom: 1px solid #334155; padding-bottom: 0; }
+    .tab { padding: 10px 20px; cursor: pointer; font-size: 0.875rem; color: #94a3b8; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+    .tab.active { color: #3b82f6; border-bottom-color: #3b82f6; font-weight: 600; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    .link { color: #3b82f6; text-decoration: none; font-size: 0.85rem; }
+    .link:hover { text-decoration: underline; }
+    .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid #334155; border-top-color: #3b82f6; border-radius: 50%; animation: spin 0.6s linear infinite; vertical-align: middle; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>🍽️ POS Mesita Demo</h1>
+    </div>
+    <span class="badge">Demo</span>
+    <a class="link" href="/sistema/api/v1/docs" target="_blank" style="margin-left:auto">📖 Swagger UI</a>
+  </header>
+
+  <div class="api-key-bar">
+    <label>API Key:</label>
+    <input type="text" id="apiKey" value="demo-api-key-change-in-production" />
+    <button onclick="reloadMesas()">Conectar</button>
+    <span id="conn-status" style="font-size:0.8rem;color:#6b7280"></span>
+  </div>
+
+  <div class="container">
+    <div class="tabs">
+      <div class="tab active" onclick="showTab('tab-mesas', this)">🪑 Mesas</div>
+      <div class="tab" onclick="showTab('tab-orden', this)">📋 Órdenes</div>
+      <div class="tab" onclick="showTab('tab-qr', this)">📱 Pago QR</div>
+      <div class="tab" onclick="showTab('tab-docs', this)">🧾 Documentos</div>
+      <div class="tab" onclick="showTab('tab-api', this)">🔧 API Tester</div>
+    </div>
+
+    <!-- MESAS TAB -->
+    <div id="tab-mesas" class="tab-content active">
+      <div class="section-title">Mapa de Mesas <span id="mesa-count" style="color:#6b7280"></span></div>
+      <div id="mesa-grid" class="grid">
+        <div style="color:#6b7280;font-size:0.85rem">Cargando...</div>
+      </div>
+    </div>
+
+    <!-- ORDENES TAB -->
+    <div id="tab-orden" class="tab-content">
+      <div class="panel">
+        <h2>Abrir Nueva Orden</h2>
+        <div class="form-row">
+          <select id="orden-mesa-id"><option value="">Seleccionar mesa...</option></select>
+          <input type="text" id="orden-descripcion" placeholder="Descripción (opcional)" />
+          <input type="text" id="orden-mesero" placeholder="Mesero" />
+          <button class="btn btn-primary" onclick="abrirOrden()">Abrir Orden</button>
+        </div>
+        <div id="orden-output" class="output" style="display:none"></div>
+      </div>
+      <div class="panel">
+        <h2>Agregar Ítem a Orden</h2>
+        <div class="form-row">
+          <input type="text" id="item-orden-id" placeholder="Orden ID" />
+          <input type="text" id="item-nombre" placeholder="Nombre del producto" />
+          <input type="number" id="item-cantidad" placeholder="Cantidad" value="1" min="1" />
+          <input type="number" id="item-precio" placeholder="Precio unitario" step="0.01" />
+          <button class="btn btn-success" onclick="agregarItem()">Agregar</button>
+        </div>
+        <div id="item-output" class="output" style="display:none"></div>
+      </div>
+    </div>
+
+    <!-- QR PAYMENT TAB -->
+    <div id="tab-qr" class="tab-content">
+      <div class="panel">
+        <h2>Solicitar Pago QR — MesitaQR / Paga Ya</h2>
+        <div class="form-row">
+          <input type="text" id="qr-mesa-id" placeholder="Mesa ID" />
+          <input type="text" id="qr-orden-id" placeholder="Orden ID" />
+          <input type="number" id="qr-monto" placeholder="Monto total" step="0.01" />
+          <button class="btn btn-primary" onclick="solicitarPago()">Generar QR</button>
+        </div>
+        <div id="qr-section" style="display:none" class="qr-section">
+          <div class="qr-img"><img id="qr-img" alt="QR" /></div>
+          <div style="flex:1">
+            <div style="margin-bottom:8px"><strong>Session ID:</strong> <span id="qr-session-id" style="font-family:monospace;font-size:0.8rem"></span></div>
+            <div style="margin-bottom:8px"><strong>Estado:</strong> <span id="qr-estado-pill" class="status-pill pill-pendiente">pendiente</span></div>
+            <div style="margin-bottom:8px"><strong>Expira:</strong> <span id="qr-expiry"></span></div>
+            <div style="margin-bottom:8px"><strong>URL:</strong> <a id="qr-url-link" class="link" target="_blank"></a></div>
+            <button class="btn btn-outline" onclick="pollEstado()" id="poll-btn">🔄 Consultar Estado</button>
+          </div>
+        </div>
+        <div id="qr-output" class="output" style="display:none;margin-top:16px"></div>
+      </div>
+    </div>
+
+    <!-- DOCUMENTOS TAB -->
+    <div id="tab-docs" class="tab-content">
+      <div class="panel">
+        <h2>Crear Pre-Factura (PRE)</h2>
+        <div class="form-row">
+          <input type="text" id="doc-orden-id" placeholder="Orden ID (opcional)" />
+          <input type="text" id="doc-descripcion" placeholder="Descripción" value="PREFACTURA DEMO" />
+          <input type="number" id="doc-total" placeholder="Total" step="0.01" value="23.00" />
+          <select id="doc-tipo"><option value="PRE">PRE — Pre-factura</option><option value="FAC">FAC — Factura</option></select>
+          <button class="btn btn-primary" onclick="crearDocumento()">Crear</button>
+        </div>
+        <div style="margin-top:12px;font-size:0.8rem;color:#6b7280">
+          ℹ️ IVA Ecuador = 15% | Formato fecha: DD/MM/YYYY | Moneda: USD
+        </div>
+        <div id="doc-output" class="output" style="display:none;margin-top:12px"></div>
+      </div>
+    </div>
+
+    <!-- API TESTER TAB -->
+    <div id="tab-api" class="tab-content">
+      <div class="panel">
+        <h2>API Tester</h2>
+        <div class="form-row">
+          <select id="api-method" style="max-width:100px">
+            <option>GET</option><option>POST</option><option>PATCH</option><option>DELETE</option>
+          </select>
+          <input type="text" id="api-path" placeholder="/sistema/api/v1/mesa/" style="flex:2" />
+          <button class="btn btn-primary" onclick="apiCall()">Send</button>
+        </div>
+        <textarea id="api-body" placeholder='{"key": "value"} — body for POST/PATCH'
+          style="width:100%;background:#0f172a;border:1px solid #475569;color:#e2e8f0;padding:10px;border-radius:6px;font-family:monospace;font-size:0.8rem;height:100px;margin-top:8px;resize:vertical"></textarea>
+        <div id="api-output" class="output" style="margin-top:12px;display:none"></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+const BASE = '/sistema/api/v1';
+let currentQrSessionId = null;
+
+function getKey() { return document.getElementById('apiKey').value.trim(); }
+
+async function apiFetch(path, options = {}) {
+  const res = await fetch(path, {
+    ...options,
+    headers: {
+      'Authorization': 'Token ' + getKey(),
+      'Content-Type': 'application/json',
+      ...(options.headers || {}),
+    },
+  });
+  const json = await res.json().catch(() => ({}));
+  return { ok: res.ok, status: res.status, data: json };
+}
+
+async function reloadMesas() {
+  const grid = document.getElementById('mesa-grid');
+  const sel = document.getElementById('orden-mesa-id');
+  grid.innerHTML = '<div style="color:#6b7280">Cargando...</div>';
+  const { ok, data } = await apiFetch(BASE + '/mesa/');
+  if (!ok) {
+    grid.innerHTML = '<div style="color:#f87171">Error: ' + (data.error || 'No se pudo conectar') + '</div>';
+    document.getElementById('conn-status').textContent = '❌ Error';
+    return;
+  }
+  document.getElementById('conn-status').textContent = '✅ Conectado';
+  document.getElementById('mesa-count').textContent = `(${data.count || 0})`;
+
+  const mesas = data.results || [];
+  grid.innerHTML = '';
+  sel.innerHTML = '<option value="">Seleccionar mesa...</option>';
+  mesas.forEach(m => {
+    const label = { L: 'Libre', O: 'Ocupada', P: 'Pagando', C: 'Cerrada' }[m.estado] || m.estado;
+    grid.innerHTML += `
+      <div class="mesa-card" onclick="selectMesa('${m.id}', '${m.nombre}')">
+        <span class="estado-badge estado-${m.estado}">${label}</span>
+        <div class="mesa-name">${m.nombre}</div>
+        <div class="mesa-info">${m.capacidad} personas</div>
+        <div class="mesa-info" style="margin-top:4px">${m.ubicacion || ''}</div>
+      </div>`;
+    sel.innerHTML += `<option value="${m.id}">${m.nombre} (${label})</option>`;
+  });
+}
+
+function selectMesa(id, nombre) {
+  document.getElementById('qr-mesa-id').value = id;
+  document.getElementById('orden-mesa-id').value = id;
+  showTab('tab-qr', document.querySelectorAll('.tab')[2]);
+  alert(`Mesa seleccionada: ${nombre}\nID: ${id}`);
+}
+
+async function abrirOrden() {
+  const out = document.getElementById('orden-output');
+  const body = {
+    mesa_id: document.getElementById('orden-mesa-id').value,
+    descripcion: document.getElementById('orden-descripcion').value,
+    mesero: document.getElementById('orden-mesero').value,
+  };
+  if (!body.mesa_id) return alert('Selecciona una mesa');
+  const { ok, data } = await apiFetch(BASE + '/orden/', { method: 'POST', body: JSON.stringify(body) });
+  out.style.display = 'block';
+  out.textContent = JSON.stringify(data, null, 2);
+  if (ok) {
+    document.getElementById('item-orden-id').value = data.id;
+    document.getElementById('qr-orden-id').value = data.id;
+    reloadMesas();
+  }
+}
+
+async function agregarItem() {
+  const out = document.getElementById('item-output');
+  const ordenId = document.getElementById('item-orden-id').value;
+  if (!ordenId) return alert('Ingresa el Orden ID');
+  const body = {
+    nombre: document.getElementById('item-nombre').value,
+    cantidad: parseFloat(document.getElementById('item-cantidad').value),
+    precio: parseFloat(document.getElementById('item-precio').value),
+    porcentaje_iva: 15,
+  };
+  const { ok, data } = await apiFetch(`${BASE}/orden/${ordenId}/detalle/`, { method: 'POST', body: JSON.stringify(body) });
+  out.style.display = 'block';
+  out.textContent = JSON.stringify(data, null, 2);
+}
+
+async function solicitarPago() {
+  const out = document.getElementById('qr-output');
+  const body = {
+    mesa_id: document.getElementById('qr-mesa-id').value,
+    orden_id: document.getElementById('qr-orden-id').value,
+    monto_total: parseFloat(document.getElementById('qr-monto').value),
+  };
+  if (!body.mesa_id || !body.orden_id || !body.monto_total) return alert('Completa todos los campos');
+  const { ok, data } = await apiFetch(BASE + '/mesitaqr/solicitar-pago/', { method: 'POST', body: JSON.stringify(body) });
+  out.style.display = 'block';
+  out.textContent = JSON.stringify(data, null, 2);
+  if (ok && data.qr_code) {
+    currentQrSessionId = data.session_id;
+    document.getElementById('qr-section').style.display = 'flex';
+    document.getElementById('qr-img').src = data.qr_code;
+    document.getElementById('qr-session-id').textContent = data.session_id;
+    document.getElementById('qr-expiry').textContent = new Date(data.expira_en).toLocaleString('es-EC');
+    document.getElementById('qr-url-link').href = data.qr_url;
+    document.getElementById('qr-url-link').textContent = data.qr_url;
+    reloadMesas();
+  }
+}
+
+async function pollEstado() {
+  if (!currentQrSessionId) return;
+  const { ok, data } = await apiFetch(`${BASE}/mesitaqr/estado/${currentQrSessionId}/`);
+  const pill = document.getElementById('qr-estado-pill');
+  pill.textContent = data.estado;
+  pill.className = 'status-pill pill-' + (data.estado || 'pendiente');
+  document.getElementById('qr-output').textContent = JSON.stringify(data, null, 2);
+}
+
+async function crearDocumento() {
+  const out = document.getElementById('doc-output');
+  const total = parseFloat(document.getElementById('doc-total').value) || 23.00;
+  const tipo = document.getElementById('doc-tipo').value;
+  const subtotal15 = Math.round(total / 1.15 / 1.10 * 100) / 100;
+  const iva = Math.round(subtotal15 * 0.15 * 100) / 100;
+  const servicio = Math.round(subtotal15 * 0.10 * 100) / 100;
+  const today = new Date().toLocaleDateString('es-EC', { day:'2-digit', month:'2-digit', year:'numeric' });
+
+  const body = {
+    fecha_emision: today,
+    tipo_documento: tipo,
+    tipo_registro: 'CLI',
+    estado: 'P',
+    electronico: true,
+    descripcion: document.getElementById('doc-descripcion').value,
+    subtotal_0: 0,
+    subtotal_15: subtotal15,
+    iva,
+    servicio,
+    total,
+    orden_id: document.getElementById('doc-orden-id').value || undefined,
+    cliente: {
+      cedula: '9999999999',
+      ruc: '9999999999001',
+      razon_social: 'CONSUMIDOR FINAL',
+      tipo: 'N',
+      email: '',
+      telefonos: '',
+      direccion: 'Ecuador',
+      es_extranjero: false,
+    },
+    detalles: [],
+    cobros: tipo === 'FAC' ? [{ forma_cobro: 'EF', monto: total }] : [],
+  };
+  const { ok, data } = await apiFetch(BASE + '/documento/', { method: 'POST', body: JSON.stringify(body) });
+  out.style.display = 'block';
+  out.textContent = JSON.stringify(data, null, 2);
+}
+
+async function apiCall() {
+  const method = document.getElementById('api-method').value;
+  const path = document.getElementById('api-path').value;
+  const bodyText = document.getElementById('api-body').value.trim();
+  const out = document.getElementById('api-output');
+  out.style.display = 'block';
+  out.textContent = '⏳ Enviando...';
+
+  const opts = { method };
+  if (bodyText && ['POST', 'PATCH', 'PUT'].includes(method)) {
+    try { opts.body = JSON.stringify(JSON.parse(bodyText)); } catch { out.textContent = '❌ JSON inválido'; return; }
+  }
+  const { status, data } = await apiFetch(path, opts);
+  out.textContent = `HTTP ${status}\n\n` + JSON.stringify(data, null, 2);
+}
+
+function showTab(id, el) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  el.classList.add('active');
+}
+
+// Auto-load
+reloadMesas();
+</script>
+</body>
+</html>

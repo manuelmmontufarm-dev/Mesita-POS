@@ -1,0 +1,39 @@
+version: "3.9"
+
+services:
+  api:
+    build: .
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      DATABASE_URL: postgresql://posuser:pospassword@db:5432/posdb
+      API_KEY: ${API_KEY:-demo-api-key-change-in-production}
+      NODE_ENV: ${NODE_ENV:-development}
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:3000}
+      MESITAQR_WEBHOOK_SECRET: ${MESITAQR_WEBHOOK_SECRET:-dev-webhook-secret}
+      MESITAQR_QR_EXPIRY_MINUTES: ${MESITAQR_QR_EXPIRY_MINUTES:-15}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - ./src:/app/src:ro  # hot reload in dev; remove in prod
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: posuser
+      POSTGRES_PASSWORD: pospassword
+      POSTGRES_DB: posdb
+    ports:
+      - "5433:5432"   # 5433 on host to avoid conflicts with local PG
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U posuser -d posdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
