@@ -71,6 +71,7 @@ async function abrirOrden(data) {
       descripcion: data.descripcion || null,
       mesero: data.mesero || null,
       estado: ESTADO_ORDEN.ABIERTA,
+      comensales: Number.isFinite(Number(data.comensales)) ? Math.max(0, Math.min(20, parseInt(data.comensales, 10))) : 0,
     },
     include: { mesa: true, detalles: true },
   });
@@ -159,6 +160,11 @@ async function actualizarOrden(id, data) {
   const updateData = {};
   if (data.estado !== undefined) updateData.estado = data.estado;
   if (data.descripcion !== undefined) updateData.descripcion = data.descripcion;
+  if (data.mesero !== undefined) updateData.mesero = data.mesero;
+  if (data.comensales !== undefined) {
+    const n = parseInt(data.comensales, 10);
+    if (Number.isFinite(n)) updateData.comensales = Math.max(0, Math.min(20, n));
+  }
   if (data.estado === ESTADO_ORDEN.CERRADA) updateData.cerradaAt = new Date();
 
   return prisma.orden.update({

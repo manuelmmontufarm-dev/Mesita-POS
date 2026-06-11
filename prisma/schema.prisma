@@ -37,6 +37,7 @@ model Orden {
   estado      String        @default("A")  // A | C | X
   descripcion String?
   mesero      String?
+  comensales  Int           @default(0)  // diners count (party size)
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
   cerradaAt   DateTime?

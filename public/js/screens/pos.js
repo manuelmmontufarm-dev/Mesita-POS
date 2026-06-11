@@ -47,24 +47,14 @@ export async function renderPOS(root, mesaId) {
 
   paint(root);
   unsub = subscribe(() => paint(root));
-
-  maybePromptDiners();
 }
 
-// Prompt for party size only on a fresh orden with no items and no stored count.
-function maybePromptDiners() {
+// Modal: pick party size and persist to Orden.comensales (server-side).
+// No auto-prompt — tables start with 0 diners until the user explicitly sets one.
+function openDinersModal({ initial = 0, canCancel = true } = {}) {
   const orden = state.current.orden;
   if (!orden?.id) return;
-  const detalles = orden.detalles || [];
-  if (detalles.length > 0) return;
-  if (getDiners(orden.id) != null) return;
-  openDinersModal({ initial: 2, canCancel: false });
-}
-
-function openDinersModal({ initial = 2, canCancel = true } = {}) {
-  const orden = state.current.orden;
-  if (!orden?.id) return;
-  let value = Math.max(1, Math.min(20, Number(initial) || 2));
+  let value = Math.max(0, Math.min(20, Number(initial) || 0));
 
   const display = h('div', {
     style: { fontSize: '3rem', fontWeight: 800, textAlign: 'center', margin: '12px 0', color: 'var(--brand-600)' },
@@ -104,12 +94,16 @@ function openDinersModal({ initial = 2, canCancel = true } = {}) {
     canCancel ? h('button', { class: 'btn btn-ghost', onclick: () => closeModal() }, 'Cancelar') : null,
     h('button', {
       class: 'btn btn-primary',
-      onclick: () => {
-        setDiners(orden.id, value);
-        closeModal();
-        // Force a repaint of the sidebar so the new count shows up.
-        const root = document.getElementById('view-root');
-        if (root) paint(root);
+      onclick: async (e) => {
+        const btn = e.currentTarget;
+        try {
+          await withLoading(btn, () => setDiners(orden.id, value));
+          closeModal();
+          await refreshOrden();
+          toast(value > 0 ? `${value} persona${value === 1 ? '' : 's'}` : 'Sin comensales', 'ok', 1500);
+        } catch (err) {
+          toast('Error al guardar: ' + err.message, 'bad');
+        }
       },
     }, 'Confirmar'),
   );
@@ -244,7 +238,7 @@ function buildSidebar() {
   const orden = state.current.orden || {};
   const detalles = orden.detalles || [];
 
-  const diners = getDiners(orden.id);
+  const diners = getDiners(orden);
   side.appendChild(h('div', { class: 'precuenta-head' },
     h('div', {},
       h('div', { class: 'ptable' }, state.current.mesa?.nombre || 'Mesa'),
@@ -252,13 +246,13 @@ function buildSidebar() {
       h('div', {
         style: { display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px', fontSize: '0.85rem', color: 'var(--ink-2)' },
       },
-        h('span', {}, `👥 ${diners != null ? diners : '—'} persona${diners === 1 ? '' : 's'}`),
+        h('span', {}, diners > 0 ? `👥 ${diners} persona${diners === 1 ? '' : 's'}` : '👥 Sin comensales'),
         h('button', {
           class: 'btn btn-ghost btn-sm',
           style: { padding: '2px 6px', minHeight: 'auto', fontSize: '0.8rem' },
-          title: 'Editar número de personas',
-          onclick: () => openDinersModal({ initial: diners || 2, canCancel: true }),
-        }, '✏️'),
+          title: diners > 0 ? 'Editar número de personas' : 'Agregar comensales',
+          onclick: () => openDinersModal({ initial: diners, canCancel: true }),
+        }, diners > 0 ? '✏️' : '+'),
       ),
     ),
     h('button', { class: 'btn btn-ghost btn-sm', onclick: () => { location.hash = '#/mesas'; } }, iconWrap('back', null, 14), 'Mesas'),
@@ -458,7 +452,7 @@ function buildPrintRegion() {
   const orden = state.current.orden || {};
   const detalles = orden.detalles || [];
   const t = state.current.totales || {};
-  const diners = getDiners(orden.id);
+  const diners = getDiners(orden);
   const now = new Date();
   const fecha = now.toLocaleDateString('es-EC');
   const hora = now.toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' });
@@ -490,7 +484,7 @@ function buildPrintRegion() {
   );
   wrap.appendChild(h('div', { style: { marginBottom: '10px', borderBottom: '1px dashed #000', paddingBottom: '8px' } },
     metaRow('Mesa', state.current.mesa?.nombre || '—'),
-    metaRow('Personas', diners != null ? String(diners) : '—'),
+    metaRow('Personas', diners > 0 ? String(diners) : '—'),
     metaRow('Fecha', fecha),
     metaRow('Hora', hora),
     orden.mesero ? metaRow('Mesero', String(orden.mesero)) : null,

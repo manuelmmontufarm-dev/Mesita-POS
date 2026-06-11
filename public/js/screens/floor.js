@@ -2,6 +2,7 @@
 import { state, subscribe, loadFloor } from '../state.js';
 import { h, icon } from '../ui.js';
 import { ESTADO_MESA, money } from '../format.js';
+import { getDiners } from '../diners.js';
 
 const ZONE_ORDER = ['Interior', 'Terraza', 'Bar', 'Privado'];
 
@@ -99,6 +100,8 @@ function buildZone(name, mesas) {
 }
 
 function buildTableCard(m) {
+  const activeOrden = (m.ordenes && m.ordenes[0]) || null;
+  const diners = getDiners(activeOrden);
   const card = h('button', {
     class: 'table-card',
     onclick: () => { location.hash = `#/mesa/${encodeURIComponent(m.id)}`; },
@@ -106,7 +109,11 @@ function buildTableCard(m) {
   },
     h('div', { class: `badge badge-${m.estado || 'L'}` }, h('span', { class: 'dot' }), ESTADO_MESA[m.estado] || m.estado),
     h('div', { class: 'name' }, m.nombre || '—'),
-    h('div', { class: 'meta' }, iconSpan('users'), `${m.capacidad || 4} personas`),
+    h('div', { class: 'meta' }, iconSpan('users'),
+      diners > 0
+        ? `${diners} / ${m.capacidad || 4} personas`
+        : `Cap. ${m.capacidad || 4}`,
+    ),
   );
 
   const t = m.orden_activa_total;
