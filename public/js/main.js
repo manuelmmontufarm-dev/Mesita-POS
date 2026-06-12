@@ -45,20 +45,57 @@ async function route() {
 }
 
 function needsAuth() {
-  return !state.sessionToken && state.connection !== 'ok';
+  return !hasAccess();
+}
+
+function hasAccess() {
+  return Boolean(state.sessionToken || (state.apiKey && state.connection === 'ok'));
 }
 
 function needsSetup() {
   return state.sessionToken && state.restaurant && state.restaurant.setup_completed === false;
 }
 
-async function onAuthenticated() {
-  await checkConnection();
-  if (state.sessionToken) {
-    try { await loadRestaurantSettings(); } catch (_) {}
+async function onAuthenticated(opts = {}) {
+  const root = document.getElementById('view-root');
+  renderAppLoading(root, {
+    title: opts.title || 'Preparando POS',
+    message: opts.message || 'Cargando mesas, menu y configuracion.',
+  });
+  paintHeader();
+
+  try {
+    await checkConnection();
+    if (state.connection !== 'ok') throw new Error('No se pudo verificar la sesion.');
+    if (state.sessionToken) {
+      try { await loadRestaurantSettings(); } catch (_) {}
+    }
+  } catch (err) {
+    clearSession();
+    location.hash = '';
+    renderAuth(root, onAuthenticated);
+    toast(err.message || 'No se pudo iniciar sesion', 'bad', 5000);
+    return;
   }
+
   if (!location.hash || location.hash === '#/') location.hash = '#/mesas';
+  if (opts.successToast) toast(opts.successToast, 'ok');
   route();
+}
+
+function renderAppLoading(root, { title, message }) {
+  root.classList.remove('full');
+  root.innerHTML = '';
+  const crumbs = document.getElementById('crumbs');
+  if (crumbs) crumbs.textContent = '';
+  root.appendChild(h('div', { class: 'app-loading-screen' },
+    h('div', { class: 'app-loading-panel' },
+      h('div', { class: 'app-loading-mark' }, '🍽️'),
+      h('div', { class: 'app-loading-spinner', 'aria-hidden': 'true' }),
+      h('h2', {}, title),
+      h('p', {}, message),
+    ),
+  ));
 }
 
 function paintHeader() {
@@ -209,10 +246,16 @@ async function withSettingsLoading(btn, fn) {
 }
 
 async function handleLogout() {
+  const root = document.getElementById('view-root');
+  renderAppLoading(root, {
+    title: 'Cerrando sesion',
+    message: 'Limpiando esta sesion del navegador.',
+  });
   try { await api.logout(); } catch (_) {}
   clearSession();
   location.hash = '';
-  route();
+  paintHeader();
+  renderAuth(root, onAuthenticated);
 }
 
 async function start() {

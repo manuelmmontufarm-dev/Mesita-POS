@@ -161,9 +161,12 @@ function loginForm(onAuthenticated) {
             email: email.querySelector('input').value,
             password: password.querySelector('input').value,
           });
-          saveSession(session);
-          toast('Bienvenido', 'ok');
-          onAuthenticated && onAuthenticated();
+          saveSession(session, { notifyChange: false });
+          await onAuthenticated?.({
+            title: 'Entrando al POS',
+            message: 'Cargando tu restaurante y mesas.',
+            successToast: 'Bienvenido',
+          });
         } catch (err) {
           toast(err.message || 'No se pudo iniciar sesion', 'bad', 5000);
         }
@@ -199,9 +202,12 @@ function registerForm(onAuthenticated) {
             ownerName, email, password, restaurantName, legalName,
             ruc, address, city, phone, restaurantEmail,
           ]));
-          saveSession(session);
-          toast('Cuenta creada', 'ok');
-          onAuthenticated && onAuthenticated();
+          saveSession(session, { notifyChange: false });
+          await onAuthenticated?.({
+            title: 'Creando tu POS',
+            message: 'Preparando la configuracion inicial.',
+            successToast: 'Cuenta creada',
+          });
         } catch (err) {
           toast(err.message || 'No se pudo crear la cuenta', 'bad', 5000);
         }
@@ -234,9 +240,12 @@ function guestButton(onAuthenticated) {
         await withLoading(e.currentTarget, async () => {
           try {
             const session = await api.guestLogin();
-            saveSession(session);
-            toast('Entraste al demo', 'ok');
-            onAuthenticated && onAuthenticated();
+            saveSession(session, { notifyChange: false });
+            await onAuthenticated?.({
+              title: 'Preparando demo',
+              message: 'Cargando mesas, menu y cuentas de ejemplo.',
+              successToast: 'Entraste al demo',
+            });
           } catch (err) {
             toast(err.message || 'No se pudo entrar al demo', 'bad', 5000);
           }

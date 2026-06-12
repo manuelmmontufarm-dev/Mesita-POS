@@ -32,7 +32,8 @@ export function loadApiKey() {
 
 export function loadAuth() {
   loadApiKey();
-  const raw = localStorage.getItem(SESSION_STORAGE);
+  const raw = sessionStorage.getItem(SESSION_STORAGE);
+  localStorage.removeItem(SESSION_STORAGE);
   if (!raw) return null;
   try {
     const session = JSON.parse(raw);
@@ -41,6 +42,7 @@ export function loadAuth() {
       return session;
     }
   } catch (_) {
+    sessionStorage.removeItem(SESSION_STORAGE);
     localStorage.removeItem(SESSION_STORAGE);
   }
   return null;
@@ -59,7 +61,10 @@ export function saveSession(session, opts = {}) {
   state.restaurant = session?.restaurant || state.restaurant || null;
   state.role = session?.role || state.role || null;
   api.setSessionToken(state.sessionToken);
-  if (session?.token) localStorage.setItem(SESSION_STORAGE, JSON.stringify(session));
+  if (session?.token) {
+    sessionStorage.setItem(SESSION_STORAGE, JSON.stringify(session));
+    localStorage.removeItem(SESSION_STORAGE);
+  }
   applyRestaurantInfo(state.restaurant);
   if (opts.notifyChange !== false) notify();
 }
@@ -77,6 +82,12 @@ export function clearSession() {
   state.user = null;
   state.restaurant = null;
   state.role = null;
+  state.connection = state.apiKey ? 'idle' : 'bad';
+  state.mesas = [];
+  state.productos = [];
+  state.categorias = [];
+  state.current = { mesa: null, orden: null, totales: null };
+  sessionStorage.removeItem(SESSION_STORAGE);
   localStorage.removeItem(SESSION_STORAGE);
   api.setSessionToken('');
   notify();
@@ -86,8 +97,8 @@ export async function refreshAuth() {
   if (!state.sessionToken) return null;
   const auth = await api.me();
   setAuthContext(auth, { notifyChange: false });
-  const saved = JSON.parse(localStorage.getItem(SESSION_STORAGE) || '{}');
-  localStorage.setItem(SESSION_STORAGE, JSON.stringify({
+  const saved = JSON.parse(sessionStorage.getItem(SESSION_STORAGE) || '{}');
+  sessionStorage.setItem(SESSION_STORAGE, JSON.stringify({
     ...saved,
     user: auth.user,
     restaurant: auth.restaurant,
