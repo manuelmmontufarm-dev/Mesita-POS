@@ -1,5 +1,11 @@
 # POS Mesita Demo — Claude Code Context
 
+## ⚠️ BITÁCORA OBLIGATORIA — `TODAY.md`
+Antes de editar cualquier cosa, **lee `TODAY.md`** (sección "En qué estamos ahora").
+Después de **cada** cambio, agrega una entrada al principio del registro en `TODAY.md`
+con: **QUÉ** se cambió, **POR QUÉ**, y **QUÉ HACE** el cambio. Lo reciente con detalle;
+lo viejo se resume. Esta regla aplica a todo edit en este repo.
+
 ## What This Is
 A demo REST API for a restaurant POS system, built to test MesitaQR (Paga Ya) QR payment integration and Contifico (Ecuador ERP) compatibility.
 
