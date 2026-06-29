@@ -56,6 +56,11 @@ let dbReady = false;
 let dbInitPromise = null;
 
 async function initDatabase() {
+  if (!env.DATABASE_URL) {
+    const err = new Error('DATABASE_URL no configurada en Vercel. Agrega la URL de Supabase en Environment Variables.');
+    err.statusCode = 503;
+    throw err;
+  }
   if (dbReady) return;
   if (!dbInitPromise) {
     dbInitPromise = (async () => {

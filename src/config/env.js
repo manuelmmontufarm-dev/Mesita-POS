@@ -30,12 +30,12 @@ const env = {
   APP_BASE_URL: process.env.APP_BASE_URL || 'http://localhost:3000',
 };
 
-// Validate required fields in production
+// Validate required fields in production (warn only — routes return 503 if DB missing)
 if (env.NODE_ENV === 'production') {
   const required = ['DATABASE_URL', 'API_KEY'];
   const missing = required.filter((k) => !env[k]);
   if (missing.length > 0) {
-    throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
+    console.error(`[env] Missing recommended environment variables: ${missing.join(', ')}`);
   }
 }
 
