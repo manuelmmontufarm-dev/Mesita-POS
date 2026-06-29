@@ -89,119 +89,51 @@ app.use(async (req, res, next) => {
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
 // ---------------------------------------------------------------------------
-// Swagger / OpenAPI docs  — served at /sistema/api/v1/docs/
+// Swagger / OpenAPI docs — lazy-loaded (keeps Vercel cold starts fast)
 // ---------------------------------------------------------------------------
-const swaggerOptions = {
-  definition: {
-    openapi: '3.0.0',
-    info: {
-      title: 'POS Mesita Demo API',
-      version: '1.0.0',
-      description: `
-Demo POS REST API for MesitaQR + Contifico integration testing.
+let swaggerSpec;
 
-**Auth:** Use \`Authorization: Bearer <session>\` after login, or legacy \`Authorization: Token <API_KEY>\`.
-
-**Base path:** \`/sistema/api/v1/\`
-
-**Ecuador IVA:** 15% (Ley 004, effective 1 Apr 2024)
-
-**Date format:** DD/MM/YYYY (Contifico convention)
-      `,
-      contact: { name: 'jdonoso1', url: 'https://github.com/jdonoso1/pos-mesita-demo' },
-      license: { name: 'MIT' },
-    },
-    servers: [
-      { url: '/sistema/api/v1', description: 'Current server' },
-    ],
-    components: {
-      securitySchemes: {
-        TokenAuth: {
-          type: 'apiKey',
-          in: 'header',
-          name: 'Authorization',
-          description: 'Use format: Token <your_api_key>',
+function getSwaggerSpec() {
+  if (!swaggerSpec) {
+    const swaggerOptions = {
+      definition: {
+        openapi: '3.0.0',
+        info: {
+          title: 'POS Mesita Demo API',
+          version: '1.0.0',
+          description: 'Demo POS REST API for MesitaQR + Contifico integration testing.',
         },
-      },
-      schemas: {
-        DocumentoInput: {
-          type: 'object',
-          required: ['tipo_documento', 'fecha_emision', 'total'],
-          properties: {
-            pos: { type: 'string', description: 'Contifico POS UUID' },
-            fecha_emision: { type: 'string', example: '10/06/2026' },
-            tipo_documento: { type: 'string', enum: ['PRE', 'FAC'] },
-            tipo_registro: { type: 'string', default: 'CLI' },
-            estado: { type: 'string', enum: ['P', 'C', 'A', 'F'], default: 'P' },
-            electronico: { type: 'boolean', default: true },
-            descripcion: { type: 'string', example: 'FACTURA MESA 5' },
-            subtotal_0: { type: 'number', example: 0.00 },
-            subtotal_15: { type: 'number', example: 18.26 },
-            iva: { type: 'number', example: 2.74 },
-            servicio: { type: 'number', example: 2.00 },
-            total: { type: 'number', example: 23.00 },
-            cliente: {
-              type: 'object',
-              properties: {
-                cedula: { type: 'string', example: '0922054366' },
-                ruc: { type: 'string', example: '0922054366001' },
-                razon_social: { type: 'string', example: 'Juan Pérez' },
-                tipo: { type: 'string', enum: ['N', 'J'], default: 'N' },
-                email: { type: 'string', example: 'cliente@example.com' },
-                telefonos: { type: 'string', example: '0988800001' },
-                direccion: { type: 'string', example: 'Guayaquil, Ecuador' },
-                es_extranjero: { type: 'boolean', default: false },
-              },
-            },
-            detalles: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  producto_id: { type: 'string' },
-                  cantidad: { type: 'number', example: 2.00 },
-                  precio: { type: 'number', example: 8.50 },
-                  porcentaje_iva: { type: 'integer', example: 15 },
-                  porcentaje_descuento: { type: 'number', example: 0 },
-                  base_cero: { type: 'number', example: 0 },
-                  base_gravable: { type: 'number', example: 17.00 },
-                  base_no_gravable: { type: 'number', example: 0 },
-                },
-              },
-            },
-            cobros: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  forma_cobro: { type: 'string', enum: ['EF', 'TC', 'TD', 'TR', 'CH'] },
-                  monto: { type: 'number', example: 23.00 },
-                },
-              },
+        servers: [{ url: '/sistema/api/v1', description: 'Current server' }],
+        components: {
+          securitySchemes: {
+            TokenAuth: {
+              type: 'apiKey',
+              in: 'header',
+              name: 'Authorization',
+              description: 'Use format: Token <your_api_key>',
             },
           },
         },
+        security: [{ TokenAuth: [] }],
       },
-    },
-    security: [{ TokenAuth: [] }],
-  },
-  apis: [path.join(__dirname, 'api', 'v1', '*.js')],
-};
-
-const swaggerSpec = swaggerJsdoc(swaggerOptions);
+      apis: [path.join(__dirname, 'api', 'v1', '*.js')],
+    };
+    swaggerSpec = swaggerJsdoc(swaggerOptions);
+  }
+  return swaggerSpec;
+}
 
 app.use(
   '/sistema/api/v1/docs',
   swaggerUi.serve,
-  swaggerUi.setup(swaggerSpec, {
+  swaggerUi.setup(null, {
     customSiteTitle: 'POS Mesita Demo — API Docs',
-    swaggerOptions: { persistAuthorization: true },
+    swaggerOptions: { persistAuthorization: true, spec: getSwaggerSpec() },
   })
 );
 
-// Raw OpenAPI JSON
 app.get('/sistema/api/v1/openapi.json', (req, res) => {
-  res.json(swaggerSpec);
+  res.json(getSwaggerSpec());
 });
 
 // ---------------------------------------------------------------------------
