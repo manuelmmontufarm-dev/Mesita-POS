@@ -16,6 +16,7 @@ const platformService = require('../services/platformService');
 async function requireApiKey(req, res, next) {
   if (
     req.path === '/health/' ||
+    req.path === '/health/db/' ||
     req.path === '/mesitaqr/webhook/' ||
     req.path.startsWith('/auth/') ||
     req.path === '/auth' ||

@@ -7,6 +7,7 @@
 
 const express = require('express');
 const router = express.Router();
+const { getPlatformPrisma } = require('../../config/database');
 
 const mesaRouter = require('./mesa');
 const ordenRouter = require('./orden');
@@ -25,6 +26,21 @@ router.get('/health/', (req, res) => {
     version: '1.0.0',
     timestamp: new Date().toISOString(),
   });
+});
+
+router.get('/health/db/', async (req, res) => {
+  try {
+    const prisma = getPlatformPrisma();
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({ status: 'ok', database: 'connected', timestamp: new Date().toISOString() });
+  } catch (err) {
+    res.status(503).json({
+      status: 'error',
+      database: 'disconnected',
+      detail: err.message,
+      hint: 'Revisa DATABASE_URL en Vercel (Supabase pooler puerto 6543).',
+    });
+  }
 });
 
 // Resource routes
