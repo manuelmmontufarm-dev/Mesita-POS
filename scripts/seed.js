@@ -57,6 +57,7 @@ async function seed() {
     { id: 'mesa-08', nombre: 'Mesa 8', capacidad: 2, ubicacion: 'Bar' },
     { id: 'mesa-09', nombre: 'Mesa 9', capacidad: 4, ubicacion: 'Bar' },
     { id: 'mesa-10', nombre: 'Mesa 10', capacidad: 6, ubicacion: 'Privado' },
+    { id: 'mesa-12', nombre: 'Mesa 12', capacidad: 6, ubicacion: 'Demo' },
   ];
   const mesas = await Promise.all(
     mesaData.map((m) =>
@@ -88,8 +89,14 @@ async function seed() {
   console.log('✓ 1 persona demo');
 
   console.log('\n✅ Seed completado exitosamente.');
-  console.log('   Mesas: mesa-01 … mesa-10');
+  console.log('   Mesas: mesa-01 … mesa-10, mesa-12 (demo)');
   console.log('   API Key: ver variable API_KEY en .env');
+
+  if (process.env.RUN_PLATFORM_BOOTSTRAP === '1') {
+    const { ensurePlatformReady } = require('../src/services/platformService');
+    await ensurePlatformReady();
+    console.log('✓ Platform tenant bootstrap');
+  }
 }
 
 function upsertProducto(id, nombre, descripcion, precio, categoriaId) {

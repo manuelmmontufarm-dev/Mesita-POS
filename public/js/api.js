@@ -34,6 +34,13 @@ async function request(path, { method = 'GET', body } = {}) {
 
 export const health = () => fetch(BASE + '/health/').then((r) => r.ok);
 
+export const bootstrap = () => request('/bootstrap/');
+
+export const activityRecent = (since) => {
+  const qs = since ? `?since=${encodeURIComponent(since)}` : '';
+  return request('/activity/recent/' + qs);
+};
+
 export const login = (body) => request('/auth/login/', { method: 'POST', body });
 export const register = (body) => request('/auth/register/', { method: 'POST', body });
 export const guestLogin = () => request('/auth/guest/', { method: 'POST' });
@@ -77,6 +84,8 @@ export const removeDetalle = (ordenId, detalleId) =>
   request(`/orden/${ordenId}/detalle/${detalleId}/`, { method: 'DELETE' });
 export const totalesOrden = (id) => request(`/orden/${id}/totales/`);
 
+export const openOrden = (mesaId) => request('/orden/open/', { method: 'POST', body: { mesa_id: mesaId } });
+
 export const createDocumento = (body) => request('/documento/', { method: 'POST', body });
 export const listDocumentos = (params = {}) => {
   const qs = new URLSearchParams({ result_size: '100', ...params }).toString();
@@ -86,6 +95,11 @@ export const getDocumento = (id) => request(`/documento/${id}/`);
 
 // Find or open the active order on a mesa.
 export async function getOrCreateOrden(mesa) {
+  try {
+    const result = await openOrden(mesa.id);
+    return result.orden;
+  } catch (_) { /* fallthrough */ }
+
   try {
     const detail = await getMesa(mesa.id);
     if (detail && detail.orden_activa) {

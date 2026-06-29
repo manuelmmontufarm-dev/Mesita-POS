@@ -43,6 +43,15 @@ router.get('/', asyncHandler(async (req, res) => {
   res.json(result);
 }));
 
+router.post('/open/', asyncHandler(async (req, res) => {
+  const mesaId = req.body.mesa_id || req.body.mesaId;
+  if (!mesaId) {
+    return res.status(400).json({ error: 'Se requiere mesa_id.' });
+  }
+  const result = await ordenService.abrirOEncontrarOrden(mesaId);
+  res.status(result.created ? 201 : 200).json(result);
+}));
+
 /**
  * @swagger
  * /orden/{id}/:

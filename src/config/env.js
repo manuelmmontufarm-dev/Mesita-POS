@@ -28,6 +28,10 @@ const env = {
 
   // App base URL (used for QR callback URLs)
   APP_BASE_URL: process.env.APP_BASE_URL || 'http://localhost:3000',
+
+  // When true in production, skip runtime DDL/tenant bootstrap (done via seed/deploy).
+  PLATFORM_BOOTSTRAPPED: process.env.PLATFORM_BOOTSTRAPPED === '1'
+    || process.env.PLATFORM_BOOTSTRAPPED === 'true',
 };
 
 // Validate required fields in production (warn only — routes return 503 if DB missing)

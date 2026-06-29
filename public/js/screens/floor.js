@@ -1,10 +1,10 @@
 // Floor / table grid screen.
-import { state, subscribe, loadFloor } from '../state.js';
+import { state, subscribe, loadFloor, isFloorFresh } from '../state.js';
 import { h, icon } from '../ui.js';
 import { ESTADO_MESA, money } from '../format.js';
 import { getDiners } from '../diners.js';
 
-const ZONE_ORDER = ['Interior', 'Terraza', 'Bar', 'Privado'];
+const ZONE_ORDER = ['Interior', 'Terraza', 'Bar', 'Privado', 'Demo'];
 
 export async function renderFloor(root) {
   root.innerHTML = '';
@@ -15,17 +15,23 @@ export async function renderFloor(root) {
 
   const container = h('div', {});
   root.appendChild(container);
-  container.appendChild(buildSkeleton());
 
-  try {
-    await loadFloor();
-  } catch (err) {
-    container.innerHTML = '';
-    container.appendChild(buildError(err.message));
-    return;
+  if (isFloorFresh()) {
+    paint(container);
+    loadFloor({ background: true }).then(() => {
+      if (root.contains(container)) paint(container);
+    });
+  } else {
+    container.appendChild(buildSkeleton());
+    try {
+      await loadFloor({ force: true });
+    } catch (err) {
+      container.innerHTML = '';
+      container.appendChild(buildError(err.message));
+      return;
+    }
+    paint(container);
   }
-
-  paint(container);
 
   const unsub = subscribe(() => { if (root.firstChild === container) paint(container); });
   const obs = new MutationObserver(() => {
@@ -108,7 +114,7 @@ function buildTableCard(m) {
     style: { font: 'inherit', cursor: 'pointer', textAlign: 'left' },
   },
     h('div', { class: `badge badge-${m.estado || 'L'}` }, h('span', { class: 'dot' }), ESTADO_MESA[m.estado] || m.estado),
-    h('div', { class: 'name' }, m.nombre || '—'),
+    h('div', { class: 'name' }, m.nombre || '—', m.id === 'mesa-12' ? h('span', { class: 'demo-badge', style: { marginLeft: '6px', fontSize: '0.7rem', background: 'var(--accent)', color: '#fff', padding: '2px 6px', borderRadius: '4px' } }, 'Demo') : null),
     h('div', { class: 'meta' }, iconSpan('users'),
       diners > 0
         ? `${diners} / ${m.capacidad || 4} personas`

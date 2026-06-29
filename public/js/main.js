@@ -6,12 +6,13 @@ import {
   loadAuth,
   saveApiKey,
   checkConnection,
+  bootstrapApp,
   refreshAuth,
   clearSession,
-  loadRestaurantSettings,
   updateRestaurantLocal,
 } from './state.js';
 import { h, toast, openModal, closeModal } from './ui.js';
+import { startPaymentNotifications, stopPaymentNotifications } from './notifications.js';
 import { renderAuth, renderSetup } from './screens/auth.js';
 import { renderFloor } from './screens/floor.js';
 import { renderPOS } from './screens/pos.js';
@@ -19,7 +20,7 @@ import { renderHistorial } from './screens/historial.js';
 import { renderMesasConfig } from './screens/mesas-config.js';
 import { renderMenu } from './screens/menu.js';
 
-const MIN_TRANSITION_MS = 650;
+const MIN_TRANSITION_MS = 150;
 
 const ROUTES = [
   { match: /^#\/mesa\/(.+)$/,   render: (root, m) => renderPOS(root, decodeURIComponent(m[1])) },
@@ -51,7 +52,7 @@ function needsAuth() {
 }
 
 function hasAccess() {
-  return Boolean(state.sessionToken || (state.apiKey && state.connection === 'ok'));
+  return Boolean(state.sessionToken);
 }
 
 function needsSetup() {
@@ -68,11 +69,9 @@ async function onAuthenticated(opts = {}) {
   paintHeader();
 
   try {
-    await checkConnection();
+    await bootstrapApp();
+    if (state.connection !== 'ok') await checkConnection();
     if (state.connection !== 'ok') throw new Error('No se pudo verificar la sesion.');
-    if (state.sessionToken) {
-      try { await loadRestaurantSettings(); } catch (_) {}
-    }
   } catch (err) {
     clearSession();
     location.hash = '';
@@ -84,6 +83,7 @@ async function onAuthenticated(opts = {}) {
   if (!location.hash || location.hash === '#/') location.hash = '#/mesas';
   await waitForTransition(startedAt);
   if (opts.successToast) toast(opts.successToast, 'ok');
+  startPaymentNotifications();
   route();
 }
 
@@ -257,6 +257,7 @@ async function handleLogout() {
     message: 'Limpiando esta sesion del navegador.',
   });
   try { await api.logout(); } catch (_) {}
+  stopPaymentNotifications();
   await waitForTransition(startedAt);
   clearSession();
   location.hash = '';
@@ -273,15 +274,16 @@ async function start() {
   loadAuth();
   subscribe(paintHeader);
   paintHeader();
+  checkConnection().then(() => paintHeader());
   if (state.sessionToken) {
     try {
       await refreshAuth();
+      await bootstrapApp();
+      startPaymentNotifications();
     } catch (_) {
       clearSession();
     }
   }
-  await checkConnection();
-  if (state.connection === 'ok') await loadRestaurantSettings();
   window.addEventListener('hashchange', () => { paintHeader(); route(); });
   route();
 }

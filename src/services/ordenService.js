@@ -232,10 +232,35 @@ function round2(n) {
   return Math.round(n * 100) / 100;
 }
 
+/**
+ * Find active orden on mesa or create one; return orden + totales.
+ * @param {string} mesaId
+ */
+async function abrirOEncontrarOrden(mesaId) {
+  const prisma = getPrisma();
+  const existing = await prisma.orden.findFirst({
+    where: { mesaId, estado: ESTADO_ORDEN.ABIERTA },
+    orderBy: { createdAt: 'desc' },
+    include: {
+      mesa: true,
+      detalles: { include: { producto: true }, orderBy: { createdAt: 'asc' } },
+    },
+  });
+  if (existing) {
+    const totales = await calcularTotales(existing.id);
+    return { orden: existing, totales, created: false };
+  }
+  const orden = await abrirOrden({ mesa_id: mesaId });
+  const full = await obtenerOrden(orden.id);
+  const totales = await calcularTotales(full.id);
+  return { orden: full, totales, created: true };
+}
+
 module.exports = {
   listarOrdenes,
   obtenerOrden,
   abrirOrden,
+  abrirOEncontrarOrden,
   agregarDetalle,
   eliminarDetalle,
   actualizarOrden,

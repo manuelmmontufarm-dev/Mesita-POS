@@ -55,7 +55,7 @@ app.use(express.urlencoded({ extended: true }));
 let dbReady = false;
 let dbInitPromise = null;
 
-async function initDatabase() {
+async function initDatabase({ fullBootstrap = false } = {}) {
   if (!env.DATABASE_URL) {
     const err = new Error('DATABASE_URL no configurada en Vercel. Agrega la URL de Supabase en Environment Variables.');
     err.statusCode = 503;
@@ -65,7 +65,10 @@ async function initDatabase() {
   if (!dbInitPromise) {
     dbInitPromise = (async () => {
       await connectDatabase();
-      await ensurePlatformReady();
+      const skipRuntimeBootstrap = env.NODE_ENV === 'production' && env.PLATFORM_BOOTSTRAPPED;
+      if (!skipRuntimeBootstrap || fullBootstrap) {
+        await ensurePlatformReady();
+      }
       dbReady = true;
     })().catch((err) => {
       dbInitPromise = null;

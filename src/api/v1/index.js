@@ -17,6 +17,8 @@ const productoRouter = require('./producto');
 const mesitaqrRouter = require('./mesitaqr');
 const authRouter = require('./auth');
 const restaurantRouter = require('./restaurant');
+const bootstrapRouter = require('./bootstrap');
+const activityRouter = require('./activity');
 
 // Health check (unauthenticated)
 router.get('/health/', (req, res) => {
@@ -45,6 +47,8 @@ router.get('/health/db/', async (req, res) => {
 
 // Resource routes
 router.use('/auth', authRouter);
+router.use('/bootstrap', bootstrapRouter);
+router.use('/activity', activityRouter);
 router.use('/restaurant', restaurantRouter);
 router.use('/mesa', mesaRouter);
 router.use('/orden', ordenRouter);
