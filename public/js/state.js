@@ -4,7 +4,8 @@ import { RESTAURANT_INFO } from './format.js';
 
 const KEY_STORAGE = 'pos-mesita-api-key';
 const SESSION_STORAGE = 'pos-mesita-session';
-const DEFAULT_KEY = '';
+// Demo API key — matches Vercel API_KEY; enables guest/API flows without manual setup.
+const DEFAULT_KEY = 'mesita2024secret';
 
 export const state = {
   apiKey: '',

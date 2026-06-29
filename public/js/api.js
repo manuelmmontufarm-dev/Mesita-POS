@@ -34,15 +34,15 @@ async function request(path, { method = 'GET', body } = {}) {
 
 export const health = () => fetch(BASE + '/health/').then((r) => r.ok);
 
-export const login = (body) => request('/auth/login', { method: 'POST', body });
-export const register = (body) => request('/auth/register', { method: 'POST', body });
-export const guestLogin = () => request('/auth/guest', { method: 'POST' });
-export const logout = () => request('/auth/logout', { method: 'POST' });
-export const me = () => request('/auth/me');
+export const login = (body) => request('/auth/login/', { method: 'POST', body });
+export const register = (body) => request('/auth/register/', { method: 'POST', body });
+export const guestLogin = () => request('/auth/guest/', { method: 'POST' });
+export const logout = () => request('/auth/logout/', { method: 'POST' });
+export const me = () => request('/auth/me/');
 
-export const getRestaurantSettings = () => request('/restaurant/settings');
-export const updateRestaurantSettings = (body) => request('/restaurant/settings', { method: 'PATCH', body });
-export const completeRestaurantSetup = (body) => request('/restaurant/setup', { method: 'POST', body });
+export const getRestaurantSettings = () => request('/restaurant/settings/');
+export const updateRestaurantSettings = (body) => request('/restaurant/settings/', { method: 'PATCH', body });
+export const completeRestaurantSetup = (body) => request('/restaurant/setup/', { method: 'POST', body });
 
 export const listMesas = (params = {}) => {
   const qs = new URLSearchParams({ result_size: '100', ...params }).toString();

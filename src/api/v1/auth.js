@@ -5,28 +5,28 @@ const router = express.Router();
 const platformService = require('../../services/platformService');
 const { asyncHandler } = require('../../middlewares/errorHandler');
 
-router.post('/register', asyncHandler(async (req, res) => {
+router.post(['/register', '/register/'], asyncHandler(async (req, res) => {
   const result = await platformService.registerRestaurant(req.body || {});
   res.status(201).json(result);
 }));
 
-router.post('/login', asyncHandler(async (req, res) => {
+router.post(['/login', '/login/'], asyncHandler(async (req, res) => {
   const result = await platformService.login(req.body || {});
   res.json(result);
 }));
 
-router.post('/guest', asyncHandler(async (req, res) => {
+router.post(['/guest', '/guest/'], asyncHandler(async (req, res) => {
   const result = await platformService.guestLogin();
   res.json(result);
 }));
 
-router.post('/logout', asyncHandler(async (req, res) => {
+router.post(['/logout', '/logout/'], asyncHandler(async (req, res) => {
   const token = bearerToken(req);
   const result = await platformService.logout(token);
   res.json(result);
 }));
 
-router.get('/me', asyncHandler(async (req, res) => {
+router.get(['/me', '/me/'], asyncHandler(async (req, res) => {
   const token = bearerToken(req);
   const auth = await platformService.authenticateSession(token);
   res.json(auth);
