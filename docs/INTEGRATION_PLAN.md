@@ -591,6 +591,41 @@ Work needed:
 Do not change the demo path. Do not touch src/lib/demo-* files.
 ```
 
+#### Phase 1 — Completion Record
+
+| Field | Value |
+|---|---|
+| **Status** | `COMPLETE` |
+| **Completed** | `2026-06-30` |
+| **Code shipped** | `902a956` — `feat(phase1-2): production mesas, status gates, POS ingest wiring` | to production `GET/POST/PATCH/DELETE /api/tables` (was demo-pos only).
+- Added **Nombre en el POS** field (`posExternalId`), required when `invoiceMode === "POS"`.
+- QR download via `/api/qr/[tableId]` (PNG + PDF) and copy link to `/pay/[token]`.
+- **Restaurant status gates:** login blocks `PENDING`/`SUSPENDED`; `requireAuth()` returns 403 for non-ACTIVE restaurants.
+- Configuracion shows `slug` + `status` from fiscal GET.
+- Register already creates `slug` (Phase 0).
+- Unit tests: `src/app/api/tables/__tests__/route.test.ts`.
+
+**Verification evidence:**
+- `npm test -- src/app/api/tables/__tests__/route.test.ts` → 2/2 pass
+- `npm test -- src/middleware.test.ts` → pass
+- Production: `/api/guest/bill/demo` → 200 after minimal seed
+- Production: `/admin/login` + session cookie → admin API 200
+
+**Deviations from plan:**
+- Mesas page no longer shows demo-pos table grid (demo tables remain on `/pay/demo` path only).
+- PENDING owners get auth error at login (not a dedicated “awaiting activation” page).
+
+**Carry-forward → Phase 2:**
+- Enable Contifico in configuracion now sets `invoiceMode = "POS"` (fixed in same push as Phase 2 partial).
+- Create tables with `posExternalId` before first Contifico PRE.
+
+#### Recommendations for Phase 2 (from Phase 1)
+
+1. After creating tables in mesas, verify `posExternalId` in `/admin/restaurants/[id]` detail view.
+2. Enable POS in configuracion only after API key is saved — toggling on sets `invoiceMode=POS`.
+3. Use manual ingest `curl -H "Authorization: Bearer $CRON_SECRET" .../api/pos/ingest` before relying on cron.
+4. Hobby Vercel cron is hourly (`vercel.json`); on-scan refresh in guest bill is the real-time path.
+
 ---
 
 ### Phase 2 — POS Ingestion (Contífico → PagaYa DB)
@@ -656,6 +691,34 @@ What needs to happen:
 
 Do not touch demo tables or Redis code.
 ```
+
+#### Phase 2 — Completion Record
+
+| Field | Value |
+|---|---|
+| **Status** | `PARTIAL` |
+| **Completed** | `2026-06-30` |
+| **Code shipped** | `902a956` — `feat(phase1-2): production mesas, status gates, POS ingest wiring` |
+
+**What was done:**
+- Fixed integrations toggle: enabling Contifico sets `invoiceMode = "POS"` (disabling reverts to `DISABLED`).
+- **On-scan ingest:** `src/lib/pos-on-scan.ts` + awaited refresh in `GET /api/guest/bill/[token]` before bill read.
+- `vercel.json` added with hourly cron (`0 * * * *`) for Hobby tier.
+- Default `posTableField` fallback → `"descripcion"` (was `"referencia"`).
+- Guest bill blocks non-ACTIVE restaurants (`403`).
+
+**Verification evidence:**
+- `npm test -- src/modules/pos/application/__tests__/ingest-orders.test.ts` → pass
+- Production manual ingest: **not run** — requires live Contifico API key + PRE in sandbox (human step).
+
+**Deviations from plan:**
+- On-scan refresh is **awaited** (not fire-and-forget) so guest sees fresh bill on first paint; adds ~1–3s latency on POS restaurants.
+- Cron is **hourly**, not every minute (Vercel Hobby).
+- `scripts/test-ingest.ts` not added; use `curl` + CRON_SECRET instead.
+
+**Carry-forward → Phase 3:**
+- End-to-end guest path still blocked until Contifico PRE exists for a mapped table.
+- Panel dashboard still on demo API (Phase 5 scope).
 
 ---
 
