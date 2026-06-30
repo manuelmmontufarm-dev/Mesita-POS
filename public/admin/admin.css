@@ -1,0 +1,32 @@
+/* Admin — layout extra (tokens from pos-v2/pos.css) */
+.kpi4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 11px; margin-bottom: 22px; }
+.kpi4 .sbox .v { font-size: 1.35rem; }
+.kpi4 .sbox.highlight { background: var(--brand-soft); border-color: rgba(232,106,51,.35); }
+.kpi4 .sbox.highlight .v { color: var(--brand-dark); }
+
+.bar-chart { display: flex; align-items: flex-end; gap: 8px; height: 140px; padding: 16px; background: var(--muted-surf); border: 1px solid var(--line); border-radius: var(--r-md); }
+.bar-chart .bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; justify-content: flex-end; }
+.bar-chart .bar { width: 100%; max-width: 48px; border-radius: 8px 8px 4px 4px; background: var(--line); transition: height .4s var(--ease); min-height: 4px; }
+.bar-chart .bar.on { background: var(--brand); }
+.bar-chart .bar-lbl { font-size: .72rem; font-weight: 700; color: var(--ink-mut); }
+.bar-chart .bar-val { font-size: .68rem; color: var(--ink-mut); font-weight: 600; }
+
+.pending-list { display: flex; flex-direction: column; gap: 10px; }
+.pending-card {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding: 16px 18px; background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r-md); box-shadow: var(--sh-sm);
+}
+.pending-card .pc-main { flex: 1; min-width: 200px; }
+.pending-card .pc-name { font-weight: 750; font-size: 1rem; }
+.pending-card .pc-meta { font-size: .82rem; color: var(--ink-mut); margin-top: 3px; }
+.pending-card .pc-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.status-pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px; border-radius: 100px; font-size: .76rem; font-weight: 700; }
+.status-pill.L { background: var(--ok-soft); color: var(--ok); }
+.status-pill.P { background: var(--warn-soft); color: #B97A14; }
+.status-pill.C { background: var(--muted-surf); color: var(--ink-mut); }
+
+.admin-split { display: grid; grid-template-columns: 1.2fr 1fr; gap: 20px; }
+@media (max-width: 960px) { .kpi4 { grid-template-columns: repeat(2, 1fr); } .admin-split { grid-template-columns: 1fr; } }
+@media (max-width: 520px) { .kpi4 { grid-template-columns: 1fr; } }

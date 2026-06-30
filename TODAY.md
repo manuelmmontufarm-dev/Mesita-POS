@@ -35,14 +35,19 @@ Formato de cada entrada:
 
 ## 🟢 En qué estamos ahora
 
-- **Estado general:** rediseño demo POS + sync MesitaQR para eliminar glitches de “todo pagado” y pagos duplicados.
-- **Última área trabajada:** sync mesita-app (un solo PRE por orden, skip re-import MesitaQR), backend session/reset-demo, frontend POS v2 (Claude Design) en `/pos-v2.html`.
+- **Estado general:** rediseño demo POS + sync MesitaQR; admin panel de plataforma añadido en el repo POS.
+- **Última área trabajada:** `public/admin.html` + `public/admin/` (Mesita Admin — aprobar restaurantes, volumen, cuentas).
 - **Pendiente / próximos pasos:** deploy Railway (POS) + Vercel (mesita-app) y prueba E2E mesa 1 con dos teléfonos.
 - **Cosas a tener cuidado:** no commitear secretos; mesas 1–4 arrancan vacías en guest app — ítems vienen del POS.
 
 ---
 
 ## 🗂️ Registro de cambios (lo más nuevo primero)
+
+### 2026-06-30 — Mesita Admin panel (super-admin demo)
+- **Qué:** `public/admin.html`, `public/admin/data.jsx`, `public/admin/app.jsx`, `public/admin/admin.css`.
+- **Por qué:** el equipo Mesita necesita ver restaurantes, aprobar registros PENDING, volumen QR y cuentas desde un panel separado del POS de caja.
+- **Qué hace:** prototipo funcional reutilizando `pos-v2/pos.css` y `ui.jsx`; accesible en `/admin.html` tras deploy del POS demo.
 
 ### 2026-06-30 — Rediseño sync demo + POS v2 frontend
 - **Qué:** `mesaSessionService.js`, rutas `GET/POST /mesa/:id/session|reset-demo`, `documentoService` (filtro `orden_id`, cobro idempotente), `public/pos-v2/` + `store-api.jsx`, sync mesita-app (`registerPaymentInPosMesita`, `pull-pos-payments`).
