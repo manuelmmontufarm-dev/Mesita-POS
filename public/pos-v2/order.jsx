@@ -15,7 +15,15 @@ function Order({ mesaId, onBack }) {
 
   if (!mesa) return null;
   const orden = mesa.orden;
-  if (!orden && !cobroT) return null;
+  const closing = !orden && !cobroT && mesa.paidFlash;
+  if (!orden && !cobroT && !closing) {
+    return (
+      <div className="order-closing">
+        <div className="c-load-spinner" aria-hidden="true" />
+        <div className="load-title">Cerrando mesa…</div>
+      </div>
+    );
+  }
   const totales = orden ? computeTotals(orden, store.state.serviceEnabled) : null;
 
   let prods = PRODUCTOS;
@@ -50,18 +58,21 @@ function Order({ mesaId, onBack }) {
           <div className="empty"><div className="be">🔍</div><div className="bh">Sin resultados</div></div>
         ) : (
           <div className="prods">
-            {prods.map((p) => (
-              <button key={p.id} className="pcard" onClick={() => {
+            {prods.map((p) => {
+              const syncState = store.pendingAdds[p.id];
+              return (
+              <button key={p.id} className={"pcard" + (syncState === "pending" ? " syncing" : syncState === "synced" ? " synced" : "")} onClick={() => {
                 store.addDetalle(mesaId, p)
-                  .then(() => toast("Añadido: " + p.nombre, "ok"))
                   .catch((e) => toast(e.message || "Error al añadir", "bad"));
               }}>
+                {syncState === "pending" && <span className="pcard-sync" aria-label="Sincronizando"><span className="c-load-spinner sm" /></span>}
+                {syncState === "synced" && <span className="pcard-sync ok" aria-label="En Mesita">✓</span>}
                 <span className="pi">{p.icon}</span>
                 <span className="pn">{p.nombre}</span>
                 <span className="pd">{p.desc}</span>
                 <span className="pp tnum">{money(p.precio)}</span>
               </button>
-            ))}
+            );})}
           </div>
         )}
       </div>
@@ -88,10 +99,10 @@ function Order({ mesaId, onBack }) {
         ) : (
           <div className="bill-items">
             {orden.detalles.map((d) => (
-              <div className="li" key={d.id}>
+              <div className={"li" + (String(d.id).startsWith("opt-") ? " pending-line" : "")} key={d.id}>
                 <span className="lpi">{d.icon}</span>
                 <div className="lmain">
-                  <div className="lnm">{d.nombre}</div>
+                  <div className="lnm">{d.nombre}{String(d.id).startsWith("opt-") ? <span className="pending-dot"> ···</span> : null}</div>
                   {d.nota && <div className="lnote">“{d.nota}”</div>}
                   <div className="qty">
                     <button className="qb" onClick={() => store.setQty(mesaId, d.id, d.cantidad - 1)}>−</button>

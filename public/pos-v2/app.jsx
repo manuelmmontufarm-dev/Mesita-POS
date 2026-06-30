@@ -7,9 +7,27 @@ function App() {
   const [route, setRoute] = React.useState({ name: "floor" });
   const [apiPanel, setApiPanel] = React.useState(false);
   const [settings, setSettings] = React.useState(false);
+  const routeRef = React.useRef(route);
 
   const go = (name, mesaId) => setRoute({ name, mesaId });
   const docCount = store.state.docs.length;
+
+  React.useEffect(() => { routeRef.current = route; }, [route]);
+
+  React.useEffect(() => {
+    store.setOnMesaClosedRemotely((mesaId, info) => {
+      if (routeRef.current.name === "order" && routeRef.current.mesaId === mesaId) {
+        go("floor");
+      }
+      const label = info?.mesaNombre || "Mesa";
+      toast(
+        info?.via === "mqr" ? `${label} pagada vía Mesita QR` : `${label} cerrada`,
+        info?.via === "mqr" ? "mqr" : "ok",
+        info?.via === "mqr" ? "⚡" : undefined,
+      );
+    });
+    return () => store.setOnMesaClosedRemotely(null);
+  }, [store]);
 
   return (
     <div className="app">

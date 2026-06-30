@@ -210,6 +210,17 @@ input, select { font-family: inherit; }
 .pcard .pn { font-weight: 700; font-size: .95rem; line-height: 1.25; }
 .pcard .pd { font-size: .78rem; color: var(--ink-mut); flex: 1; line-height: 1.35; }
 .pcard .pp { font-weight: 780; color: var(--brand-dark); font-size: 1.02rem; margin-top: 2px; }
+.pcard { position: relative; }
+.pcard.syncing { border-color: var(--warn); opacity: .92; }
+.pcard.synced { border-color: var(--ok); }
+.pcard-sync { position: absolute; top: 8px; right: 8px; width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; background: var(--surface); box-shadow: var(--sh-sm); font-size: .72rem; font-weight: 800; color: var(--warn); }
+.pcard-sync.ok { color: var(--ok); background: var(--ok-soft); }
+.pending-dot { color: var(--warn); font-weight: 700; }
+.li.pending-line { opacity: .85; }
+.order-closing { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; gap: 12px; color: var(--ink-mut); }
+.load-title { font-weight: 700; font-size: 1rem; color: var(--ink); }
+.c-load-spinner { width: 28px; height: 28px; border: 3px solid var(--line); border-top-color: var(--brand); border-radius: 50%; animation: rot .7s linear infinite; }
+.c-load-spinner.sm { width: 14px; height: 14px; border-width: 2px; }
 
 /* ---------- Precuenta sidebar ---------- */
 .bill { background: var(--surface); border-left: 1px solid var(--line); display: flex; flex-direction: column; height: 100%; }

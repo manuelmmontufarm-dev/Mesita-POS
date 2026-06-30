@@ -114,6 +114,8 @@ function createStore() {
   const listeners = new Set();
   const emit = () => { version += 1; listeners.forEach((l) => l()); };
   let pollTimer = null;
+  let onMesaClosedRemotely = null;
+  const processedCloseKeys = new Set();
 
   function log(method, path, kind) {
     state.activity.unshift({
@@ -128,15 +130,149 @@ function createStore() {
 
   const mesaById = (id) => state.mesas.find((m) => m.id === id);
 
+  function snapshotMesa(m) {
+    if (!m) return null;
+    return {
+      ...m,
+      orden: m.orden
+        ? { ...m.orden, detalles: m.orden.detalles.map((d) => ({ ...d })) }
+        : null,
+      _session: m._session ? { ...m._session, cobros: [...(m._session.cobros || [])] } : null,
+    };
+  }
+
+  function buildDocFromClose(prevMesa, prevSession) {
+    const orden = prevMesa.orden;
+    if (!orden || !orden.detalles.length) return null;
+    const cobros = prevSession?.cobros || [];
+    const totales = prevSession?.totales || computeTotals(orden, state.serviceEnabled);
+    const closeKey = orden.id + ":" + cobros.map((c) => c.referencia || c.id).join("|");
+    if (processedCloseKeys.has(closeKey)) return null;
+    processedCloseKeys.add(closeKey);
+
+    const payments = cobros.map((c) => ({
+      method: c.forma_cobro === "EF" ? "EF" : c.forma_cobro === "TR" ? "TR" : "TC",
+      amount: Number(c.monto || 0),
+      label: c.detalle || (c.procesador === "MesitaQR" ? "Mesita QR" : "Caja"),
+      ref: c.referencia || "",
+    }));
+    const hasMqr = cobros.some(
+      (c) => (c.referencia || "").includes("MESITAQR") || c.procesador === "MesitaQR",
+    );
+
+    return {
+      id: "doc-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6),
+      num: String(1000 + state.docs.length + 1).padStart(6, "0"),
+      mesa: prevMesa.nombre,
+      tipo: "NV",
+      via: hasMqr ? "mqr" : "manual",
+      ts: Date.now(),
+      cliente: null,
+      detalles: orden.detalles.map((d) => ({ ...d })),
+      totales: { ...totales },
+      payments,
+      ref: hasMqr ? genRef() : null,
+      autorizacion: null,
+    };
+  }
+
+  function handleMesaClosedRemotely(mesaId, prevMesa, prevSession) {
+    const doc = buildDocFromClose(prevMesa, prevSession);
+    if (doc) {
+      state.docs.unshift(doc);
+    } else {
+      // El snapshot no alcanzó a capturar los cobros — reconcilia desde la API.
+      setTimeout(() => loadClosedDocs().then(emit), 800);
+    }
+
+    const idx = state.mesas.findIndex((x) => x.id === mesaId);
+    if (idx >= 0) {
+      state.mesas[idx].estado = "C";
+      state.mesas[idx].orden = null;
+      state.mesas[idx].coverage = null;
+      state.mesas[idx].paidFlash = true;
+    }
+    log("webhook", "← mesitaqr table.completed · " + prevMesa.nombre, "hook");
+    emit();
+
+    if (onMesaClosedRemotely) {
+      onMesaClosedRemotely(mesaId, { via: doc?.via || "mqr", mesaNombre: prevMesa.nombre });
+    }
+    setTimeout(() => apiStore.releaseMesa(mesaId), 1800);
+  }
+
   async function refreshMesaSession(mesaId) {
-    const session = await api("/mesa/" + mesaId + "/session/");
     const idx = state.mesas.findIndex((m) => m.id === mesaId);
+    const prevMesa = idx >= 0 ? snapshotMesa(state.mesas[idx]) : null;
+
+    const session = await api("/mesa/" + mesaId + "/session/");
     if (idx >= 0) {
       const prev = state.mesas[idx];
-      state.mesas[idx] = mapMesa({ ...prev, estado: session.mesa?.estado || prev.estado }, session);
+      const hadOrden = Boolean(prevMesa?.orden);
+      const mesaEstado = session.mesa?.estado || prev.estado;
+      const remoteClose =
+        hadOrden &&
+        !session.orden &&
+        (mesaEstado === "L" || mesaEstado === "C") &&
+        !prev.paidFlash;
+
+      state.mesas[idx] = mapMesa({ ...prev, estado: mesaEstado }, session);
+
+      if (remoteClose && prevMesa) {
+        handleMesaClosedRemotely(mesaId, prevMesa, prevMesa._session);
+      }
     }
     emit();
     return session;
+  }
+
+  async function loadClosedDocs() {
+    try {
+      const listed = await api("/documento/?estado=C&result_size=20");
+      const rows = listed.results || [];
+      const existingIds = new Set(state.docs.map((d) => d.id));
+      for (const row of rows.reverse()) {
+        if (existingIds.has(row.id)) continue;
+        const cobros = row.cobros || [];
+        const hasMqr = cobros.some(
+          (c) => (c.referencia || "").includes("MESITAQR") || c.procesador === "MesitaQR",
+        );
+        const mesaNombre = row.orden?.mesa?.nombre || "Mesa";
+        const detalles = (row.detallesDoc || row.detalles || []).map((d) => ({
+          id: d.id,
+          nombre: d.nombre || d.nombreManual || "Ítem",
+          cantidad: Number(d.cantidad || 1),
+          precio: Number(d.precio || 0),
+          icon: "🍽️",
+        }));
+        state.docs.push({
+          id: row.id,
+          num: String(row.numero || row.id).slice(-6).padStart(6, "0"),
+          mesa: mesaNombre,
+          tipo: row.tipoDocumento === "FAC" ? "FAC" : "NV",
+          via: hasMqr ? "mqr" : "manual",
+          ts: row.createdAt ? new Date(row.createdAt).getTime() : Date.now(),
+          cliente: row.persona ? { nombre: row.persona.razonSocial } : null,
+          detalles,
+          totales: {
+            subtotal: Number(row.subtotal15 || 0),
+            iva: Number(row.iva || 0),
+            servicio: Number(row.servicio || 0),
+            total: Number(row.total || 0),
+            serviceEnabled: Number(row.servicio || 0) > 0,
+          },
+          payments: cobros.map((c) => ({
+            method: c.formaCobro === "EF" ? "EF" : c.formaCobro === "TR" ? "TR" : "TC",
+            amount: Number(c.monto || 0),
+            label: c.detalle || "Mesita QR",
+            ref: c.referencia || "",
+          })),
+          ref: hasMqr ? genRef() : null,
+          autorizacion: null,
+        });
+      }
+      state.docs.sort((a, b) => b.ts - a.ts);
+    } catch (_) { /* optional hydration */ }
   }
 
   async function loadBootstrap() {
@@ -181,6 +317,7 @@ function createStore() {
         }),
       );
       log("GET", "/bootstrap/", "ok");
+      await loadClosedDocs();
     } catch (e) {
       state.apiOnline = false;
       state.authError = e.message || "Sin conexión";
@@ -203,11 +340,13 @@ function createStore() {
 
   const apiStore = {
     state,
+    pendingAdds: {},
     subscribe(l) { listeners.add(l); return () => listeners.delete(l); },
     getSnapshot() { return version; },
     emit, log, mesaById,
     loadBootstrap,
     refreshMesaSession,
+    setOnMesaClosedRemotely(fn) { onMesaClosedRemotely = fn; },
 
     setApiOnline(v) { state.apiOnline = v; log("system", v ? "conexión restablecida" : "conexión perdida", v ? "ok" : "err"); emit(); },
     setServiceEnabled(v) { state.serviceEnabled = v; emit(); },
@@ -228,20 +367,60 @@ function createStore() {
       const m = mesaById(id);
       if (!m) return;
       await apiStore.openMesa(id);
-      const orden = mesaById(id)?.orden;
+      const mesa = mesaById(id);
+      const orden = mesa?.orden;
       if (!orden) return;
-      log("POST", "/orden/" + orden.id + "/detalle/", "ok");
-      await api("/orden/" + orden.id + "/detalle/", {
-        method: "POST",
-        json: {
-          producto_id: prod.id,
-          nombre: prod.nombre,
-          cantidad: 1,
-          precio: prod.precio,
-          porcentaje_iva: 15,
-        },
+
+      const optId = "opt-" + Date.now() + "-" + Math.random().toString(36).slice(2, 7);
+      orden.detalles.push({
+        id: optId,
+        producto_id: prod.id,
+        nombre: prod.nombre,
+        icon: prod.icon || "🍽️",
+        cantidad: 1,
+        precio: prod.precio,
+        iva: 15,
+        nota: "",
+        _optimistic: true,
       });
-      await refreshMesaSession(id);
+      apiStore.pendingAdds[prod.id] = "pending";
+      emit();
+
+      try {
+        log("POST", "/orden/" + orden.id + "/detalle/", "ok");
+        await api("/orden/" + orden.id + "/detalle/", {
+          method: "POST",
+          json: {
+            producto_id: prod.id,
+            nombre: prod.nombre,
+            cantidad: 1,
+            precio: prod.precio,
+            porcentaje_iva: 15,
+          },
+        });
+        await refreshMesaSession(id);
+        apiStore.pendingAdds[prod.id] = "synced";
+        emit();
+        setTimeout(() => {
+          if (apiStore.pendingAdds[prod.id] === "synced") {
+            delete apiStore.pendingAdds[prod.id];
+            emit();
+          }
+        }, 1500);
+      } catch (e) {
+        const cur = mesaById(id)?.orden;
+        if (cur) {
+          const optIdx = cur.detalles.findIndex((d) => d.id === optId);
+          if (optIdx >= 0) cur.detalles.splice(optIdx, 1);
+        }
+        apiStore.pendingAdds[prod.id] = "error";
+        emit();
+        setTimeout(() => {
+          delete apiStore.pendingAdds[prod.id];
+          emit();
+        }, 2000);
+        throw e;
+      }
     },
 
     async setQty(id, detId, qty) {

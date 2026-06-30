@@ -36,13 +36,18 @@ Formato de cada entrada:
 ## 🟢 En qué estamos ahora
 
 - **Estado general:** POS + guest app en Vercel (`mesita-pos.vercel.app`, `mesitademo-two.vercel.app`).
-- **Última área trabajada:** fix sync POS↔guest (session snapshot, timeouts) + POS v2 auth gate.
+- **Última área trabajada:** UX POS v2 — ítems optimistas con indicador de sync + cierre remoto de mesa (sin pantalla en blanco) + historial de cobros Mesita.
 - **Pendiente / próximos pasos:** deploy ambos proyectos y validar E2E mesa 1 con dos teléfonos.
-- **Cosas a tener cuidado:** mesas 1–4 arrancan vacías en guest — ítems vienen del POS.
+- **Cosas a tener cuidado:** mesas 1–4 arrancan vacías en guest — ítems vienen del POS. El cierre remoto se detecta en el poll (`refreshMesaSession`).
 
 ---
 
 ## 🗂️ Registro de cambios (lo más nuevo primero)
+
+### 2026-06-30 — POS v2: tap optimista + cierre remoto sin pantalla en blanco
+- **Qué:** `public/pos-v2/store-api.jsx` (`addDetalle` optimista con `pendingAdds`, `handleMesaClosedRemotely`/`buildDocFromClose` en `refreshMesaSession`, `loadClosedDocs` en bootstrap, `setOnMesaClosedRemotely`), `public/pos-v2/order.jsx` (spinner/✓ por producto, línea optimista, fallback "Cerrando mesa…" en vez de `return null`), `public/pos-v2/app.jsx` (callback de cierre → vuelve al mapa + toast), `public/pos-v2/pos.css` (estilos de sync/cierre).
+- **Por qué:** Al tocar un producto el mesero esperaba la API antes de ver el ítem; y cuando un comensal pagaba por Mesita estando el POS en la pantalla de orden, la orden se cerraba y quedaba una pantalla en blanco (la cuenta tampoco aparecía en Cuentas cerradas).
+- **Qué hace:** El producto entra a la precuenta al instante con un spinner que pasa a ✓ cuando confirma en la nube. Cuando el poll detecta que la mesa se cerró remotamente (pago Mesita), construye el documento con el desglose por tarjeta/comensal, lo agrega a Cuentas cerradas, marca la mesa como pagada y devuelve al mesero al mapa de mesas con un aviso. El historial además se rehidrata al iniciar (`GET /documento/?estado=C`).
 
 ### 2026-06-30 — Fix POS v2 auth + session nombre en mesa
 - **Qué:** `public/pos-v2/auth-gate.jsx`, `store-api.jsx` (init tras login), `mesaSessionService.js` (`nombre` en detalle).
