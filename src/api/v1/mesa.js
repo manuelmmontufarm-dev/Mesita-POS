@@ -10,6 +10,7 @@
 const express = require('express');
 const router = express.Router();
 const mesaService = require('../../services/mesaService');
+const mesaSessionService = require('../../services/mesaSessionService');
 const { asyncHandler } = require('../../middlewares/errorHandler');
 
 /**
@@ -41,24 +42,21 @@ router.get('/', asyncHandler(async (req, res) => {
 }));
 
 /**
- * @swagger
- * /mesa/{id}/:
- *   get:
- *     summary: Obtener detalle de una mesa + orden activa
- *     tags: [Mesas]
- *     security:
- *       - TokenAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema: { type: string }
- *     responses:
- *       200:
- *         description: Mesa con orden activa incluida
- *       404:
- *         description: Mesa no encontrada
+ * Demo session snapshot — one payload for mesita-app POS sync.
  */
+router.get('/:id/session/', asyncHandler(async (req, res) => {
+  const session = await mesaSessionService.obtenerSessionMesa(req.params.id);
+  res.json(session);
+}));
+
+/**
+ * Demo reset — close orden, cancel PREs, mesa Libre (staff or auto after pay).
+ */
+router.post('/:id/reset-demo/', asyncHandler(async (req, res) => {
+  const session = await mesaSessionService.resetDemoMesa(req.params.id);
+  res.json(session);
+}));
+
 router.get('/:id/', asyncHandler(async (req, res) => {
   const mesa = await mesaService.obtenerMesa(req.params.id);
   res.json(mesa);

@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="theme-color" content="#E86A33" />
+<title>Mesita POS — Consola de caja</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/pos-v2/pos.css" />
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="/pos-v2/data.jsx"></script>
+<script type="text/babel" src="/pos-v2/store-api.jsx"></script>
+<script type="text/babel" src="/pos-v2/ui.jsx"></script>
+<script type="text/babel" src="/pos-v2/floor.jsx"></script>
+<script type="text/babel" src="/pos-v2/cobro.jsx"></script>
+<script type="text/babel" src="/pos-v2/order.jsx"></script>
+<script type="text/babel" src="/pos-v2/history.jsx"></script>
+<script type="text/babel" src="/pos-v2/app.jsx"></script>
+<script type="text/babel" src="/pos-v2/auth-gate.jsx"></script>
+<script type="text/babel">
+  ReactDOM.createRoot(document.getElementById("root")).render(<BootApp />);
+</script>
+</body>
+</html>

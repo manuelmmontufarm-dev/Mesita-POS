@@ -16,6 +16,8 @@ async function listarDocumentos(opts = {}) {
   const where = {};
   if (opts.tipo_documento) where.tipoDocumento = opts.tipo_documento;
   if (opts.fecha_emision) where.fechaEmision = opts.fecha_emision;
+  if (opts.orden_id) where.ordenId = opts.orden_id;
+  if (opts.estado) where.estado = opts.estado;
   if (opts.persona_identificacion) {
     where.OR = [
       { clienteCedula: opts.persona_identificacion },
@@ -170,8 +172,19 @@ async function actualizarDocumento(id, data) {
   const updateData = {};
   if (data.estado !== undefined) updateData.estado = data.estado;
 
-  // Add a cobro if provided
+  // Add a cobro if provided (idempotent by referencia)
   if (data.cobro) {
+    if (data.cobro.referencia) {
+      const dup = (existingDoc.cobros || []).find(
+        (c) => c.referencia && c.referencia === data.cobro.referencia
+      );
+      if (dup) {
+        return prisma.documento.findUnique({
+          where: { id },
+          include: { cobros: true, detallesDoc: true, persona: true, orden: { include: { mesa: true } } },
+        });
+      }
+    }
     validateCobrosNoOverpay(
       [...(existingDoc.cobros || []), data.cobro],
       Number(existingDoc.total || 0)

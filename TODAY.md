@@ -35,18 +35,19 @@ Formato de cada entrada:
 
 ## 🟢 En qué estamos ahora
 
-- **Estado general:** demo funcional y desplegada en Railway (auto-deploy desde `main`).
-- **Última área trabajada:** documentación del proyecto en español para entenderlo
-  mejor (`EXPLICACION.md`) y creación de esta bitácora (`TODAY.md`).
-- **Pendiente / próximos pasos:** ninguno bloqueante. La app corre; el pago QR
-  está en modo simulado (no mueve dinero real) y Contifico está en modo mock
-  (`CONTIFICO_ENABLED=false`).
-- **Cosas a tener cuidado:** no commitear secretos (`.env`, tokens, claves de BD).
-  Las variables sensibles viven en Railway, no en el repo.
+- **Estado general:** rediseño demo POS + sync MesitaQR para eliminar glitches de “todo pagado” y pagos duplicados.
+- **Última área trabajada:** sync mesita-app (un solo PRE por orden, skip re-import MesitaQR), backend session/reset-demo, frontend POS v2 (Claude Design) en `/pos-v2.html`.
+- **Pendiente / próximos pasos:** deploy Railway (POS) + Vercel (mesita-app) y prueba E2E mesa 1 con dos teléfonos.
+- **Cosas a tener cuidado:** no commitear secretos; mesas 1–4 arrancan vacías en guest app — ítems vienen del POS.
 
 ---
 
 ## 🗂️ Registro de cambios (lo más nuevo primero)
+
+### 2026-06-30 — Rediseño sync demo + POS v2 frontend
+- **Qué:** `mesaSessionService.js`, rutas `GET/POST /mesa/:id/session|reset-demo`, `documentoService` (filtro `orden_id`, cobro idempotente), `public/pos-v2/` + `store-api.jsx`, sync mesita-app (`registerPaymentInPosMesita`, `pull-pos-payments`).
+- **Por qué:** glitches: todo aparecía pagado, miles de cobros duplicados, mesa no se reiniciaba — causados por sync bidireccional mal diseñado.
+- **Qué hace:** POS es fuente de verdad para ítems; MesitaQR escribe un cobro por pago en el PRE abierto (PATCH, no POST duplicado); poll solo importa cobros de caja; pago total llama `reset-demo` y limpia Redis automáticamente; nuevo UI POS conectado a la API real.
 
 ### 2026-06-17 — Fijar la regla de bitácora en CLAUDE.md
 - **Qué:** `CLAUDE.md` (nota nueva al inicio que apunta a `TODAY.md`).
