@@ -421,6 +421,24 @@ Cron updates (POS items added by waiter):
 
 Each phase is self-contained. Complete the functionality check before moving to the next phase.
 
+### Phase completion standard (apply to every phase)
+
+When a phase is finished, update that phase's **Completion Record** block (directly under the phase prompt). Do not mark a phase **COMPLETE** until functionality checks pass in production (or a documented local equivalent).
+
+Every completion record must include:
+
+| Field | What to write |
+|---|---|
+| **Status** | `COMPLETE` \| `PARTIAL` \| `BLOCKED` |
+| **Completed** | ISO date (e.g. `2026-06-30`) |
+| **What was done** | Bullets of *actual* work shipped — not the plan restated |
+| **Verification evidence** | Commands run, endpoints hit, pass/fail |
+| **Deviations from plan** | What differed from this doc and why |
+| **Code shipped** | Git commit hash(es) on `main` |
+| **Carry-forward** | Concrete recommendations for the *next* phase only |
+
+After updating the completion record, add a short **Recommendations for Phase N+1** subsection if Phase N surfaced anything that changes how Phase N+1 should be executed.
+
 ---
 
 ### Phase 0 — Real Database Connection
@@ -437,9 +455,11 @@ Each phase is self-contained. Complete the functionality check before moving to 
 5. Verify the Vercel deployment can reach the DB (check Vercel logs for Prisma connection errors).
 
 **Functionality check:**
-- `GET /api/admin/restaurants` returns `[]` (empty array, no 500 error)
-- `POST /api/auth/register` creates a user and it appears in the DB
-- `GET /dashboard/owner/panel` loads without crashing (empty state is fine)
+- `GET /api/admin/restaurants` with valid `ADMIN_SECRET` (header, Bearer, or `admin_secret` cookie) returns JSON array — **not** `500` (empty array is fine; `401` without secret is also correct)
+- `POST /api/auth/register` creates a user and restaurant (status `PENDING`) in the DB
+- `GET /api/guest/bill/demo` returns bill JSON after `npm run db:seed:minimal` (not `TABLE_NOT_FOUND`)
+- `GET /dashboard/owner/panel` loads without crashing when logged in (empty state is fine)
+- `/admin/login` sets admin cookie and `/admin` loads restaurant list
 
 **Prompt for this phase:**
 ```
@@ -462,6 +482,50 @@ Do not touch any demo code (src/lib/demo-*, src/app/api/demo/*, Redis config).
 Do not change any existing migration files — only run deploy.
 ```
 
+#### Phase 0 — Completion Record
+
+| Field | Value |
+|---|---|
+| **Status** | `COMPLETE` |
+| **Completed** | `2026-06-30` |
+| **Code shipped** | `019bcf0` — `fix(phase0): admin login, minimal seed, slug on register, plan completion record` |
+
+**What was done:**
+- Vercel project **mesitademo**: all Phase 0 env vars set (`DATABASE_URL`, `DIRECT_URL`, `NEXTAUTH_*`, `ADMIN_SECRET`, `ENCRYPTION_KEY`, `CRON_SECRET`, `POS_MESITA_*`); production redeployed.
+- Vercel project **mesita-pos**: already had `DATABASE_URL`, `API_KEY`, `APP_BASE_URL`, `MESITAQR_WEBHOOK_SECRET`, `PLATFORM_BOOTSTRAPPED` — no changes needed.
+- **Admin auth:** `/admin/login` + `POST /api/admin/session` (httpOnly cookie); middleware guards `/admin/*` and `/api/admin/*`.
+- **Register:** creates `Restaurant.slug` on signup.
+- **Seed:** `SEED_MODE=minimal` via `npm run db:seed:minimal` (Mesita Demo, `token=demo`, owner `owner@mesita.demo`).
+- **Schema:** `PaymentStatus.PENDING` restored in Prisma to match DB enum.
+- **CI:** workflow triggers on `main` (was `master` only).
+- **Migrations:** DB was bootstrapped earlier via `prisma/supabase_deploy.sql` (now **deprecated**); baselined all 17 Prisma migrations with `prisma migrate resolve --applied` per migration, then `migrate status` → up to date.
+- **Local Prisma:** `.env` with pooler URLs (gitignored); `DIRECT_URL` uses Supabase **session pooler** `:5432` because `db.[ref].supabase.co` did not resolve on this network.
+
+**Verification evidence (production `mesitademo-two.vercel.app`, 2026-06-30):**
+
+| Check | Result |
+|---|---|
+| `GET /api/guest/bill/demo` | `200`, `success: true`, bill items present |
+| `GET /api/admin/restaurants` + `x-admin-secret` | `200`, restaurant list JSON |
+| `GET /api/admin/restaurants` (no auth) | `401` |
+| `POST /api/auth/register` | `201`, user + `restaurantId` returned |
+| `npm run db:seed:minimal` | Exit 0 |
+| `npx prisma migrate status` | "Database schema is up to date" |
+
+**Deviations from plan:**
+- Plan said `DIRECT_URL` → `db.[ref].supabase.co:5432`; **session pooler** `:5432` worked instead (`aws-1-us-east-2.pooler.supabase.com`).
+- Plan implied `migrate deploy` on empty DB; production DB already had schema from SQL script → **baseline** required before deploy.
+- Plan said "single consolidated migration"; repo has **17 incremental** migrations — fine after baseline.
+- Functionality check originally said admin endpoint returns `[]` without auth; **correct behavior is `401`** without `ADMIN_SECRET`.
+
+**Carry-forward → Phase 1:**
+- Use `/admin/login` (not manual cookie injection) to activate `PENDING` restaurants.
+- New registrations get `slug` automatically — wire dashboard routing to use it where applicable.
+- Delete stray test restaurants/users from Phase 0 smoke tests in Supabase when convenient.
+- Phase 1 `posExternalId` UI is **required** before Phase 2 ingest — seed already demonstrates pattern (`posExternalId: "12"` on demo table).
+- Do **not** run `npm run db:seed` (full) on production — only `db:seed:minimal`.
+- Push code before testing `/admin/login` on Vercel (was local-only until this commit).
+
 ---
 
 ### Phase 1 — Restaurant Onboarding & Table Setup
@@ -469,6 +533,17 @@ Do not change any existing migration files — only run deploy.
 **What:** An owner can register, configure their restaurant, add tables, and download QR codes. No POS integration yet — just the basic setup.
 
 **Why:** Before any POS polling or payments can work, we need at least one restaurant in the DB with correctly configured tables, including `posExternalId` set for each table.
+
+#### Recommendations for Phase 1 (from Phase 0)
+
+These adjust the Phase 1 prompt based on what Phase 0 actually surfaced:
+
+1. **Admin activation first.** Every new owner from `/register` is `PENDING`. Before testing owner flows, log in at `/admin/login` and set the restaurant to `ACTIVE`.
+2. **`slug` already exists on register.** Phase 1 should *display* slug on configuracion and use it in any share links — do not add another slug-creation path.
+3. **`posExternalId` is the highest-risk field.** Seed uses `"12"` for demo table; real tables need a visible "Nombre en el POS" field on mesas — validate with a manual test table before Contífico work.
+4. **Separate demo from production mentally.** `Mesita Demo` / `token=demo` is seeded; real restaurant tables use UUID tokens from `POST /api/tables`.
+5. **Smoke-test with a fresh registration**, not only `owner@mesita.demo` — confirms the full register → admin activate → login → mesas path.
+6. **Keep `invoiceMode` DISABLED** for Phase 1 test restaurants; POS fields can be filled in UI but ingest is Phase 2+.
 
 **What to do:**
 1. Owner registers at `/register` → creates account with role OWNER.
