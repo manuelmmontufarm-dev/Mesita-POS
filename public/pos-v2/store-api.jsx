@@ -21,11 +21,19 @@ function authHeaders() {
 }
 
 async function api(path, { method = "GET", json } = {}) {
-  const res = await fetch(API_BASE + path, {
-    method,
-    headers: authHeaders(),
-    body: json !== undefined ? JSON.stringify(json) : undefined,
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000);
+  let res;
+  try {
+    res = await fetch(API_BASE + path, {
+      method,
+      headers: authHeaders(),
+      body: json !== undefined ? JSON.stringify(json) : undefined,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
   let data = null;
   try { data = await res.json(); } catch (_) { /* empty */ }
   if (!res.ok) {
@@ -425,9 +433,13 @@ function createStore() {
       refreshMesaSession(id).catch(() => {});
       emit();
     },
+
+    async init() {
+      await loadBootstrap();
+      startPoll();
+    },
   };
 
-  loadBootstrap().then(startPoll);
   return apiStore;
 }
 

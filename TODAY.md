@@ -35,14 +35,19 @@ Formato de cada entrada:
 
 ## 🟢 En qué estamos ahora
 
-- **Estado general:** rediseño demo POS + sync MesitaQR; admin panel de plataforma añadido en el repo POS.
-- **Última área trabajada:** `public/admin.html` + `public/admin/` (Mesita Admin — aprobar restaurantes, volumen, cuentas).
-- **Pendiente / próximos pasos:** deploy Railway (POS) + Vercel (mesita-app) y prueba E2E mesa 1 con dos teléfonos.
-- **Cosas a tener cuidado:** no commitear secretos; mesas 1–4 arrancan vacías en guest app — ítems vienen del POS.
+- **Estado general:** POS + guest app en Vercel (`mesita-pos.vercel.app`, `mesitademo-two.vercel.app`).
+- **Última área trabajada:** fix sync POS↔guest (session snapshot, timeouts) + POS v2 auth gate.
+- **Pendiente / próximos pasos:** deploy ambos proyectos y validar E2E mesa 1 con dos teléfonos.
+- **Cosas a tener cuidado:** mesas 1–4 arrancan vacías en guest — ítems vienen del POS.
 
 ---
 
 ## 🗂️ Registro de cambios (lo más nuevo primero)
+
+### 2026-06-30 — Fix POS v2 auth + session nombre en mesa
+- **Qué:** `public/pos-v2/auth-gate.jsx`, `store-api.jsx` (init tras login), `mesaSessionService.js` (`nombre` en detalle).
+- **Por qué:** POS v2 cargaba bootstrap antes de autenticar; detalles podían mostrarse como "Ítem".
+- **Qué hace:** login guest → bootstrap; ítems con nombre correcto en `/mesa/:id/session/`.
 
 ### 2026-06-30 — Mesita Admin panel (super-admin demo)
 - **Qué:** `public/admin.html`, `public/admin/data.jsx`, `public/admin/app.jsx`, `public/admin/admin.css`.

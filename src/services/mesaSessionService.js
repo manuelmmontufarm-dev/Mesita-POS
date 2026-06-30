@@ -20,7 +20,7 @@ function mapDetalle(d) {
   return {
     id: d.id,
     producto_id: d.productoId,
-    nombre: d.nombreManual || d.producto?.nombre || 'Ítem',
+    nombre: d.nombre || d.producto?.nombre || 'Ítem',
     cantidad: Number(d.cantidad),
     precio: Number(d.precio),
     porcentaje_iva: d.porcentajeIva ?? 15,
