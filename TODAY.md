@@ -44,6 +44,11 @@ Formato de cada entrada:
 
 ## 🗂️ Registro de cambios (lo más nuevo primero)
 
+### 2026-06-30 — POS poll 2500→1500ms (optimización de sync)
+- **Qué:** `public/pos-v2/store-api.jsx` (`POLL_MS` 2500→1500).
+- **Por qué:** El benchmark de latencia mostró que el mesero tardaba hasta 2.5s en ver en el mapa los cambios remotos (pagos Mesita / cierres). 
+- **Qué hace:** El POS refresca las mesas activas cada 1.5s, así el mapa y los cierres remotos se reflejan más rápido sin saturar el API.
+
 ### 2026-06-30 — POS v2: tap optimista + cierre remoto sin pantalla en blanco
 - **Qué:** `public/pos-v2/store-api.jsx` (`addDetalle` optimista con `pendingAdds`, `handleMesaClosedRemotely`/`buildDocFromClose` en `refreshMesaSession`, `loadClosedDocs` en bootstrap, `setOnMesaClosedRemotely`), `public/pos-v2/order.jsx` (spinner/✓ por producto, línea optimista, fallback "Cerrando mesa…" en vez de `return null`), `public/pos-v2/app.jsx` (callback de cierre → vuelve al mapa + toast), `public/pos-v2/pos.css` (estilos de sync/cierre).
 - **Por qué:** Al tocar un producto el mesero esperaba la API antes de ver el ítem; y cuando un comensal pagaba por Mesita estando el POS en la pantalla de orden, la orden se cerraba y quedaba una pantalla en blanco (la cuenta tampoco aparecía en Cuentas cerradas).

@@ -1,7 +1,7 @@
 /* Mesita POS v2 — live API store (replaces mock store.jsx) */
 const API_BASE = "/sistema/api/v1";
 const SESSION_KEY = "pos-mesita-session";
-const POLL_MS = 2500;
+const POLL_MS = 1500;
 
 function authHeaders() {
   const h = { Accept: "application/json", "Content-Type": "application/json" };
