@@ -93,8 +93,16 @@ function payLabel(payments) {
   return payments.length + " pagos";
 }
 
+function methodLabelV2(m) {
+  return ({ EF: "Efectivo", TC: "Tarjeta crédito", TD: "Tarjeta débito", TR: "Transferencia", CH: "Cheque" })[m] || "Pago";
+}
+
 function DocDetail({ doc, onClose }) {
   const t = doc.totales;
+  const payments = doc.payments || [];
+  const totalTip = round2(payments.reduce((s, p) => s + (Number(p.tip) || 0), 0));
+  const totalPaid = round2(payments.reduce((s, p) => s + (Number(p.amount) || 0), 0));
+  const isFactura = doc.tipo === "FAC";
   return (
     <Modal title={(doc.tipo === "FAC" ? "Factura" : "Nota de venta") + " #" + doc.num} sub={`${doc.mesa} · ${todayKey(doc.ts)} ${timeStr(doc.ts)}`} onClose={onClose}
       footer={<>
@@ -123,19 +131,52 @@ function DocDetail({ doc, onClose }) {
         <Row k="IVA 15%" v={money(t.iva)} />
         {t.serviceEnabled && <Row k="Servicio 10%" v={money(t.servicio)} />}
         <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0 0", marginTop: 6, borderTop: "1px dashed var(--line)", fontWeight: 800, fontSize: "1.1rem" }}>
-          <span>Total</span><span className="tnum">{money(t.total)}</span>
+          <span>Total cuenta</span><span className="tnum">{money(t.total)}</span>
         </div>
+        {totalTip > 0.005 && <Row k="Propina" v={money(totalTip)} />}
+        {totalTip > 0.005 && (
+          <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0 0", fontWeight: 800 }}>
+            <span>Total cobrado</span><span className="tnum">{money(t.total + totalTip)}</span>
+          </div>
+        )}
       </div>
 
       <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--line)" }}>
-        <div style={{ fontSize: ".74rem", fontWeight: 750, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--ink-mut)", marginBottom: 8 }}>Forma de pago</div>
-        {doc.payments.map((p, i) => (
-          <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: ".9rem", padding: "3px 0" }}>
-            <span>{p.label}{p.tip ? ` (propina ${money(p.tip)})` : ""}</span><span className="tnum">{money(p.amount)}</span>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
+          <span style={{ fontSize: ".74rem", fontWeight: 750, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--ink-mut)" }}>Forma de pago</span>
+          <span style={{ fontSize: ".8rem", color: "var(--ink-mut)" }}>
+            {payments.length} {payments.length === 1 ? "pago" : "pagos"} · Cobrado {money(totalPaid)}{totalTip > 0.005 ? ` · Propina ${money(totalTip)}` : ""}
+          </span>
+        </div>
+        {payments.map((p, i) => (
+          <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: ".9rem", padding: "4px 0" }}>
+            <span>{methodLabelV2(p.method)}{p.label && p.label !== "Caja" ? ` · ${p.label}` : ""}{p.tip ? ` (propina ${money(p.tip)})` : ""}</span>
+            <span className="tnum">{money(p.amount)}</span>
           </div>
         ))}
       </div>
-      {doc.autorizacion && <div style={{ marginTop: 14, fontSize: ".76rem", color: "var(--ink-mut)" }}>Autorización SRI: <span style={{ fontFamily: "ui-monospace, monospace" }}>{doc.autorizacion}</span></div>}
+
+      {isFactura && doc.autorizacion && (
+        <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--line)" }}>
+          <div style={{ fontSize: ".74rem", fontWeight: 750, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--ink-mut)", marginBottom: 8 }}>Datos de factura (SRI)</div>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: ".84rem", padding: "2px 0" }}>
+            <span style={{ color: "var(--ink-mut)" }}>N.º autorización</span>
+            <span style={{ fontFamily: "ui-monospace, monospace", wordBreak: "break-all", textAlign: "right" }}>{doc.autorizacion}</span>
+          </div>
+          {doc.claveAcceso && (
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: ".84rem", padding: "2px 0" }}>
+              <span style={{ color: "var(--ink-mut)" }}>Clave de acceso</span>
+              <span style={{ fontFamily: "ui-monospace, monospace", wordBreak: "break-all", textAlign: "right" }}>{doc.claveAcceso}</span>
+            </div>
+          )}
+          {(doc.urlRide || doc.urlXml) && (
+            <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+              {doc.urlRide && <a className="btn btn-outline" href={doc.urlRide} target="_blank" rel="noreferrer">📄 RIDE (PDF)</a>}
+              {doc.urlXml && <a className="btn btn-outline" href={doc.urlXml} target="_blank" rel="noreferrer">🧾 XML</a>}
+            </div>
+          )}
+        </div>
+      )}
     </Modal>
   );
 }

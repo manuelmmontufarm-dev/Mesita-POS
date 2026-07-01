@@ -151,8 +151,9 @@ function createStore() {
     processedCloseKeys.add(closeKey);
 
     const payments = cobros.map((c) => ({
-      method: c.forma_cobro === "EF" ? "EF" : c.forma_cobro === "TR" ? "TR" : "TC",
+      method: methodCode(c.forma_cobro),
       amount: Number(c.monto || 0),
+      tip: Number(c.propina || 0),
       label: c.detalle || (c.procesador === "MesitaQR" ? "Mesita QR" : "Caja"),
       ref: c.referencia || "",
     }));
@@ -238,37 +239,50 @@ function createStore() {
           (c) => (c.referencia || "").includes("MESITAQR") || c.procesador === "MesitaQR",
         );
         const mesaNombre = row.orden?.mesa?.nombre || "Mesa";
-        const detalles = (row.detallesDoc || row.detalles || []).map((d) => ({
+        // The API (formatDocumento) returns snake_case fields; read those.
+        const detalles = (row.detalles || row.detallesDoc || []).map((d) => ({
           id: d.id,
           nombre: d.nombre || d.nombreManual || "Ítem",
           cantidad: Number(d.cantidad || 1),
           precio: Number(d.precio || 0),
           icon: "🍽️",
         }));
+        const cliente = row.cliente
+          ? {
+              nombre: row.cliente.razon_social || "CONSUMIDOR FINAL",
+              id: row.cliente.ruc || row.cliente.cedula || "",
+              tipo: row.cliente.tipo || "N",
+            }
+          : null;
+        const firstRef = cobros.map((c) => c.referencia).find(Boolean) || "";
         state.docs.push({
           id: row.id,
-          num: String(row.numero || row.id).slice(-6).padStart(6, "0"),
+          num: String(row.documento || row.id).slice(-6).padStart(6, "0"),
           mesa: mesaNombre,
-          tipo: row.tipoDocumento === "FAC" ? "FAC" : "NV",
+          tipo: row.tipo_documento === "FAC" ? "FAC" : "NV",
           via: hasMqr ? "mqr" : "manual",
-          ts: row.createdAt ? new Date(row.createdAt).getTime() : Date.now(),
-          cliente: row.persona ? { nombre: row.persona.razonSocial } : null,
+          ts: row.created_at ? new Date(row.created_at).getTime() : Date.now(),
+          cliente,
           detalles,
           totales: {
-            subtotal: Number(row.subtotal15 || 0),
+            subtotal: Number(row.subtotal_0 || 0) + Number(row.subtotal_15 || 0),
             iva: Number(row.iva || 0),
             servicio: Number(row.servicio || 0),
             total: Number(row.total || 0),
             serviceEnabled: Number(row.servicio || 0) > 0,
           },
           payments: cobros.map((c) => ({
-            method: c.formaCobro === "EF" ? "EF" : c.formaCobro === "TR" ? "TR" : "TC",
+            method: methodCode(c.forma_cobro),
             amount: Number(c.monto || 0),
-            label: c.detalle || "Mesita QR",
+            tip: Number(c.propina || 0),
+            label: c.detalle || (c.procesador === "MesitaQR" ? "Mesita QR" : "Caja"),
             ref: c.referencia || "",
           })),
-          ref: hasMqr ? genRef() : null,
-          autorizacion: null,
+          ref: hasMqr ? (firstRef || genRef()) : null,
+          autorizacion: row.autorizacion || null,
+          claveAcceso: row.clave_acceso || null,
+          urlRide: row.url_ride || null,
+          urlXml: row.url_xml || null,
         });
       }
       state.docs.sort((a, b) => b.ts - a.ts);
@@ -627,6 +641,16 @@ function genAuth() {
   for (let i = 0; i < 37; i++) s += Math.floor(Math.random() * 10);
   return s;
 }
+
+// Normalize a Contifico forma_cobro code into the POS internal method code.
+function methodCode(forma) {
+  if (forma === "EF") return "EF";
+  if (forma === "TR") return "TR";
+  if (forma === "TD") return "TD";
+  if (forma === "CH" || forma === "CQ") return "CH";
+  return "TC";
+}
+window.methodCode = methodCode;
 
 const Store = createStore();
 
