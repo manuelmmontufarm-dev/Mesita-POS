@@ -17,6 +17,7 @@ const { requireApiKey } = require('./middlewares/auth');
 const { notFoundHandler, errorHandler } = require('./middlewares/errorHandler');
 const { connectDatabase } = require('./config/database');
 const apiV1Router = require('./api/v1/index');
+const contificoRouter = require('./api/contifico/index');
 const { ensurePlatformReady } = require('./services/platformService');
 
 const app = express();
@@ -152,6 +153,10 @@ app.get('/sistema/api/v1/health/', (req, res) => {
 });
 
 app.use('/sistema/api/v1', requireApiKey, apiV1Router);
+
+// Contifico-compatibility surface (byte-for-byte Contifico shapes; its own
+// raw-API-key auth). Additive — the native API above is unchanged.
+app.use('/contifico/sistema/api/v1', contificoRouter);
 
 // Root redirect
 app.get('/', (req, res) => {
