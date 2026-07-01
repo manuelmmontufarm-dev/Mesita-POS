@@ -2,9 +2,6 @@
   "version": 2,
   "installCommand": "npm install",
   "buildCommand": "npx prisma generate",
-  "redirects": [
-    { "source": "/", "destination": "/index.html", "permanent": false }
-  ],
   "rewrites": [
     { "source": "/sistema/:path*", "destination": "/api" }
   ],

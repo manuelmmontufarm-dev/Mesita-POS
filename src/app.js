@@ -78,18 +78,20 @@ async function initDatabase({ fullBootstrap = false } = {}) {
   await dbInitPromise;
 }
 
-app.use(async (req, res, next) => {
-  if (req.path.includes('/health')) return next();
-  try {
-    await initDatabase();
-    next();
-  } catch (err) {
-    next(err);
-  }
-});
-
-// Static files (demo dashboard)
+// Static files (demo dashboard) — served BEFORE the DB init gate so the app
+// shell, JS and CSS paint instantly and never block on a cold-start Postgres
+// bootstrap. express.static serves public/index.html at "/" directly (no redirect).
 app.use(express.static(path.join(__dirname, '..', 'public')));
+
+// Database init gate — only API routes need the DB. Static assets, the
+// dashboard shell and health checks skip it, so first paint is never blocked
+// on the (potentially cold) database/platform bootstrap.
+app.use((req, res, next) => {
+  const needsDb =
+    req.path.startsWith('/sistema/api/') || req.path.startsWith('/contifico/');
+  if (!needsDb || req.path.includes('/health')) return next();
+  initDatabase().then(() => next()).catch(next);
+});
 
 // ---------------------------------------------------------------------------
 // Swagger / OpenAPI docs — lazy-loaded (keeps Vercel cold starts fast)
@@ -153,10 +155,8 @@ app.get('/sistema/api/v1/health/', (req, res) => {
 
 app.use('/sistema/api/v1', requireApiKey, apiV1Router);
 
-// Root redirect
-app.get('/', (req, res) => {
-  res.redirect('/index.html');
-});
+// Note: "/" is served directly as public/index.html by express.static above —
+// no redirect, so users never see a "redirecting…" hop on load.
 
 // ---------------------------------------------------------------------------
 // Error handling (must be last)
