@@ -205,6 +205,61 @@ async function actualizarDocumento(id, data) {
   });
 }
 
+/**
+ * List the cobros (payments) attached to a documento.
+ * Mirrors Contifico's `GET /documento/{id}/cobro/`.
+ */
+async function listarCobros(documentoId) {
+  const prisma = getPrisma();
+  return prisma.cobro.findMany({
+    where: { documentoId },
+    orderBy: { createdAt: 'asc' },
+  });
+}
+
+/**
+ * Add a cobro to a documento, validating it does not overpay the total.
+ * Mirrors Contifico's `POST /documento/{id}/cobro/`.
+ */
+async function agregarCobro(documentoId, cobro) {
+  const prisma = getPrisma();
+  const doc = await prisma.documento.findUniqueOrThrow({
+    where: { id: documentoId },
+    include: { cobros: true },
+  });
+  validateCobrosNoOverpay([...(doc.cobros || []), cobro], Number(doc.total || 0));
+  return prisma.cobro.create({
+    data: {
+      documentoId,
+      formaCobro: cobro.forma_cobro,
+      monto: cobro.monto,
+      propina: cobro.propina || 0,
+      procesador: cobro.procesador || null,
+      detalle: cobro.detalle || null,
+      referencia: cobro.referencia || null,
+    },
+  });
+}
+
+/**
+ * Delete a cobro from a documento.
+ * Mirrors Contifico's `DELETE /documento/{id}/cobro/`.
+ */
+async function eliminarCobro(documentoId, cobroId) {
+  const prisma = getPrisma();
+  return prisma.cobro.delete({ where: { id: cobroId } });
+}
+
+/**
+ * Emit the SRI electronic invoice for a documento.
+ * Mirrors Contifico's `PUT /documento/{id}/sri/`: transitions the document to
+ * FACTURADO and populates autorizacion / clave_acceso / url_ride / url_xml.
+ * (Currently a local SRI mock — the single swap point for live SRI signing.)
+ */
+async function emitirSri(documentoId) {
+  return actualizarDocumento(documentoId, { estado: ESTADO_DOCUMENTO.FACTURADO });
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -288,4 +343,8 @@ module.exports = {
   obtenerDocumento,
   crearDocumento,
   actualizarDocumento,
+  listarCobros,
+  agregarCobro,
+  eliminarCobro,
+  emitirSri,
 };

@@ -19,13 +19,21 @@ const TIPO_DOCUMENTO = {
   FAC: 'FAC',   // Factura (SRI invoice)
 };
 
-// Document states
+// Document states.
+// Contifico's full enum is P:pendiente, C:cobrado, G:pagado, A:anulado,
+// E:generado, F:facturado. We keep the four the POS drives directly and expose
+// G/E so the Contifico-compatibility layer can round-trip every documented state.
 const ESTADO_DOCUMENTO = {
   PENDIENTE: 'P',
   COBRADO: 'C',
+  PAGADO: 'G',
+  GENERADO: 'E',
   ANULADO: 'A',
   FACTURADO: 'F',
 };
+
+// Full set of documento estado codes Contifico accepts/returns.
+const ESTADO_DOCUMENTO_CONTIFICO = ['P', 'C', 'G', 'A', 'E', 'F'];
 
 // Mesa states
 const ESTADO_MESA = {
@@ -42,13 +50,34 @@ const ESTADO_ORDEN = {
   CANCELADA: 'X',
 };
 
-// Payment method codes (Contifico forma_cobro)
+// Payment method codes used internally by the POS.
 const FORMA_COBRO = {
   EFECTIVO: 'EF',
   TARJETA_CREDITO: 'TC',
   TARJETA_DEBITO: 'TD',
   TRANSFERENCIA: 'TR',
   CHEQUE: 'CH',
+};
+
+// Mapping between the POS internal forma_cobro codes and Contifico's codes.
+// Contifico uses CQ for cheque (see documento example in the official guide);
+// EF/TC/TD/TR are shared. This lets the compatibility layer translate in both
+// directions so a switch to live Contifico needs no data migration.
+const FORMA_COBRO_TO_CONTIFICO = {
+  EF: 'EF',
+  TC: 'TC',
+  TD: 'TD',
+  TR: 'TR',
+  CH: 'CQ',
+};
+
+const FORMA_COBRO_FROM_CONTIFICO = {
+  EF: 'EF',
+  TC: 'TC',
+  TD: 'TD',
+  TR: 'TR',
+  CQ: 'CH',
+  CH: 'CH',
 };
 
 // MesitaQR session states
@@ -75,9 +104,12 @@ module.exports = {
   CURRENCY,
   TIPO_DOCUMENTO,
   ESTADO_DOCUMENTO,
+  ESTADO_DOCUMENTO_CONTIFICO,
   ESTADO_MESA,
   ESTADO_ORDEN,
   FORMA_COBRO,
+  FORMA_COBRO_TO_CONTIFICO,
+  FORMA_COBRO_FROM_CONTIFICO,
   MESITAQR_ESTADO,
   PAGINATION,
   SRI_MOCK_PREFIX,

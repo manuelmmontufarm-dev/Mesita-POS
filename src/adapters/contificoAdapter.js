@@ -205,10 +205,7 @@ async function forwardToContifico(contificoPayload) {
 
   const resp = await fetch(url, {
     method: 'POST',
-    headers: {
-      Authorization: `Token ${env.CONTIFICO_TOKEN}`,
-      'Content-Type': 'application/json',
-    },
+    headers: contificoHeaders(),
     body: JSON.stringify(contificoPayload),
     signal: AbortSignal.timeout(30_000),
   });
@@ -218,6 +215,45 @@ async function forwardToContifico(contificoPayload) {
     throw new Error(`Contifico API error ${resp.status}: ${body.slice(0, 300)}`);
   }
 
+  return resp.json();
+}
+
+/**
+ * Contifico auth headers. Contifico expects the API key sent RAW in the
+ * Authorization header (`Authorization: <APIKEY>`), NOT `Token <key>` or
+ * `Bearer <key>`. See http://contifico.github.io ("Autenticación").
+ */
+function contificoHeaders() {
+  return {
+    Authorization: env.CONTIFICO_TOKEN,
+    'Content-Type': 'application/json',
+  };
+}
+
+/**
+ * Emit the SRI electronic invoice for a documento on the live Contifico API.
+ * Mirrors `PUT https://api.contifico.com/sistema/api/v1/documento/{id}/sri/`.
+ * Only used when CONTIFICO_ENABLED=true.
+ */
+async function emitSriOnContifico(documentoId) {
+  if (!env.CONTIFICO_ENABLED) {
+    throw new Error('Contifico forwarding is disabled (CONTIFICO_ENABLED=false).');
+  }
+  if (!env.CONTIFICO_TOKEN) throw new Error('CONTIFICO_TOKEN is not set.');
+
+  const url = `${env.CONTIFICO_BASE_URL}/documento/${documentoId}/sri/`;
+  logger.info({ event: 'CONTIFICO_SRI', url });
+
+  const resp = await fetch(url, {
+    method: 'PUT',
+    headers: contificoHeaders(),
+    signal: AbortSignal.timeout(30_000),
+  });
+
+  if (!resp.ok) {
+    const body = await resp.text().catch(() => '');
+    throw new Error(`Contifico SRI error ${resp.status}: ${body.slice(0, 300)}`);
+  }
   return resp.json();
 }
 
@@ -232,4 +268,5 @@ module.exports = {
   toContificoDetalle,
   generateSriMock,
   forwardToContifico,
+  emitSriOnContifico,
 };
