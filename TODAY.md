@@ -48,6 +48,23 @@ Formato de cada entrada:
 
 ## 🗂️ Registro de cambios (lo más nuevo primero)
 
+### 2026-07-01 — Superficie de compatibilidad Contifico (byte-for-byte)
+- **Qué:** nueva capa `src/contifico/` (`format.js`, `serializers.js`, `inbound.js`,
+  `auth.js`) + rutas `src/api/contifico/` (`documento`, `persona`, `producto`,
+  `unsupported`, `index`) montadas en `/contifico/sistema/api/v1` (`src/app.js`).
+  Se ampliaron `documentoService` (`listarCobros`, `agregarCobro`, `eliminarCobro`,
+  `emitirSri`), `constants.js` (estados `G`/`E`, mapeo forma_cobro↔Contifico) y el
+  adapter (`Authorization` cruda + `emitSriOnContifico`). Tests nuevos:
+  `tests/contifico-compat.test.js`. Docs: `docs/contifico-compatibility.md` reescrito.
+- **Por qué:** para que el POS simule la API de Contifico *exactamente* (mismos
+  endpoints, campos, verbos, auth y limitaciones) y cambiar a Contifico real sea solo
+  cambiar la base URL + auth, sin migración de datos y sin romper la API nativa que
+  hoy consume `mesita-app`.
+- **Qué hace:** expone una superficie paralela e idéntica a Contifico (arrays
+  planos, decimales como string, fechas DD/MM/YYYY, auth con API key cruda, `PUT`
+  para updates, sub-recursos `/cobro/` y `/sri/`), respaldada por la misma base de
+  datos. La API nativa `/sistema/api/v1` queda intacta.
+
 ### 2026-06-17 — Fijar la regla de bitácora en CLAUDE.md
 - **Qué:** `CLAUDE.md` (nota nueva al inicio que apunta a `TODAY.md`).
 - **Por qué:** para que la regla "registrar cada edit" se cumpla de verdad en

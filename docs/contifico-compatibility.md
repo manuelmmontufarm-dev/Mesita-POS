@@ -1,134 +1,116 @@
 # Contifico Compatibility Guide
 
-## Overview
+This POS exposes **two** API surfaces:
 
-This POS was designed so that connecting it to a real [Contifico](https://contifico.com) account
-requires **zero changes to business logic**. The entire adaptation lives in
-`src/adapters/contificoAdapter.js`.
+| Surface | Base path | Shape | Consumers |
+|---|---|---|---|
+| **Native POS API** | `/sistema/api/v1` | POS-native (`{count,results}` envelopes, camelCase-ish, `Authorization: Token <key>`, `PATCH` updates) | The MesitaQR/PagaYa app today (`mesita-app`) |
+| **Contifico-compat surface** | `/contifico/sistema/api/v1` | **Byte-for-byte Contifico** (bare arrays, string decimals, `DD/MM/YYYY`, raw-key auth, Contifico verbs) | A migration target; swap to live Contifico with a base-URL change |
+
+The compat surface is **additive** — the native API is unchanged, so nothing that
+consumes it breaks. Both surfaces read/write the **same database** via the shared
+services (`documentoService`, `catalogoService`), so there is no data migration.
+
+Goal: develop and test against `/contifico/sistema/api/v1` exactly as you would
+against `https://api.contifico.com/sistema/api/v1`, then flip the base URL + auth
+to go live.
 
 ---
 
-## The Adapter Swap Strategy
+## Contifico-compat surface
 
-Today the adapter **mocks** Contifico calls (SRI authorization, RIDE/XML URLs). Tomorrow, with
-one environment variable change, it **forwards** them:
+Reference: the official Contifico guide — <http://contifico.github.io>.
+
+### Conventions reproduced
+- **Auth:** the API key is sent **raw** in the header: `Authorization: <APIKEY>` (no
+  `Token`/`Bearer` scheme word). `Bearer <session>` and `Token <key>` are also accepted.
+- **Envelopes:** list endpoints return a **bare JSON array** (not `{count,results}`).
+- **Types:** monetary totals are **strings** with 2 decimals (`"17.00"`); line-item
+  `cantidad`/`precio`/bases are **numbers**; dates are `DD/MM/YYYY`; absent values are
+  explicit `null`.
+- **Verbs:** `PUT` for documento/persona updates; `PATCH` for producto; `POST/GET/DELETE`
+  for `documento/{id}/cobro/`.
+
+### Endpoints implemented
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/registro/documento/` | List documentos (bare array) |
+| `GET` | `/documento/{id}/` | Single documento |
+| `POST` | `/documento/` | Create `PRE`/`FAC` |
+| `PUT` | `/documento/` | Update (id in body: `estado`, cobro) |
+| `GET/POST` | `/documento/{id}/cobro/` | List / add payment |
+| `DELETE` | `/documento/{id}/cobro/{cobroId}/` | Remove payment |
+| `PUT` | `/documento/{id}/sri/` | **Emit SRI electronic invoice** (mock signing) |
+| `GET` | `/documento/{id}/retencion/` | Empty (no withholding modelled) |
+| `GET/POST/PUT` | `/persona/` (+ `/{id}/`) | Clients; `PUT` updates by body id |
+| `GET/POST` | `/producto/` (+ `/{id}/`) | Catalog; `pvp1`/`estado`/`tipo` fields |
+| `PATCH` | `/producto/{id}/` | Update producto |
+| `GET` | `/producto/{id}/stock/` | Bodega stock (see limitations) |
+| `GET` | `/categoria/` | Product categories |
+| `GET` | `/health/` | Unauthenticated |
+
+### Estado codes
+Full Contifico set is surfaced: `P` pendiente, `C` cobrado, `G` pagado, `A` anulado,
+`E` generado, `F` facturado.
+
+### forma_cobro mapping
+Internal `EF/TC/TD/TR/CH` ↔ Contifico `EF/TC/TD/TR/CQ` (cheque is `CQ` in Contifico).
+Translated automatically in both directions.
+
+---
+
+## Deliberate limitations (same as a Contifico account without add-ons)
+
+These are **intentional** — the response shape is identical to Contifico, but the
+values reflect modules the restaurant POS does not run:
+
+- **ICE / IRBPNR:** always `null`/`"0.00"` on detalle lines (no such products).
+- **Inventory** (`bodega`, `variante`, `marca`, `movimiento-inventario`, `guía`):
+  `GET` returns `[]`; `producto/{id}/stock/` reports a single logical bodega with
+  `cantidad: null` (stock not tracked).
+- **Contabilidad** and **banco**: `GET` returns `[]`.
+- **`documento` number / `secuencial`:** synthesized deterministically in Contifico's
+  `NNN-NNN-NNNNNNNNN` format from the row id (stable, but not an SRI-assigned sequence).
+- **SRI signing** (`/documento/{id}/sri/`): local mock authorization/RIDE/XML. This is
+  the single swap point for real SRI submission.
+- **`vendedor`, `caja`, cheque/tarjeta metadata:** present in the response with
+  Contifico's default `null`.
+
+---
+
+## Field notes / things to verify before cutover
+
+- **`subtotal_15` vs `subtotal_12`.** Ecuador is at 15% IVA (2024), so the POS uses
+  `subtotal_15`. Contifico's published examples still show `subtotal_12`. The compat
+  surface emits **both** keys with the same value by default. Set
+  `CONTIFICO_STRICT_SUBTOTAL=1` (and optionally `CONTIFICO_SUBTOTAL_KEY`) to emit only
+  one. **Confirm the exact key against a live Contifico sandbox before switching.**
+- **Detalle `producto_id`.** Contifico requires a real product id per line. The app
+  currently sends restaurant line items by `nombre`; that mapping must be resolved on
+  the app side for the live switch.
+
+---
+
+## Live adapter (`src/adapters/contificoAdapter.js`)
+
+For forwarding POS documents to the real Contifico API (not wired into business logic
+by default):
 
 ```
 CONTIFICO_ENABLED=true
-CONTIFICO_TOKEN=your_real_token_here
+CONTIFICO_TOKEN=your_real_api_key
 CONTIFICO_BASE_URL=https://api.contifico.com/sistema/api/v1
 ```
 
-The `forwardToContifico()` function in the adapter handles the live call. No service files change.
+- `forwardToContifico(payload)` → `POST /documento/` with the **raw** `Authorization`
+  header (Contifico style).
+- `emitSriOnContifico(id)` → `PUT /documento/{id}/sri/`.
 
 ---
 
-## Field Mapping
+## Contract tests
 
-| Internal Model | Contifico v2 Field | Notes |
-|---|---|---|
-| `documento.tipoDocumento` | `tipo_documento` | `PRE` or `FAC` |
-| `documento.fechaEmision` | `fecha_emision` | `DD/MM/YYYY` |
-| `documento.tipoRegistro` | `tipo_registro` | Always `CLI` |
-| `documento.estado` | `estado` | `P/C/A/F` |
-| `documento.subtotal15` | `subtotal_15` | Base 15% IVA (Ecuador 2024+) |
-| `documento.iva` | `iva` | `subtotal_15 × 0.15` |
-| `documento.servicio` | `servicio` | 10% service charge |
-| `documento.total` | `total` | Full amount |
-| `documento.urlRide` | `url_ride` | PDF receipt URL |
-| `documento.urlXml` | `url_xml` | SRI XML URL |
-| `documento.autorizacionSRI` | `autorizacion` | SRI authorization number |
-| `documento.clienteCedula` | `cliente.cedula` | |
-| `documento.clienteRazonSocial` | `cliente.razon_social` | |
-| `detalleDoc.productoId` | `detalles[].producto_id` | Contifico product UUID |
-| `detalleDoc.cantidad` | `detalles[].cantidad` | |
-| `detalleDoc.precio` | `detalles[].precio` | Unit price |
-| `detalleDoc.porcentajeIva` | `detalles[].porcentaje_iva` | `15` for IVA-bearing |
-| `detalleDoc.baseGravable` | `detalles[].base_gravable` | `cantidad × precio` |
-| `cobro.formaCobro` | `cobros[].forma_cobro` | `EF/TC/TD/TR/CH` |
-| `cobro.monto` | `cobros[].monto` | |
-
----
-
-## Persona → Contifico Cliente
-
-The `toContificoPersona()` function maps our Persona model to Contifico's nested `cliente` object:
-
-```js
-// Internal
-{
-  cedula: "0922054366",
-  razonSocial: "Juan Pérez",
-  email: "juan@example.com"
-}
-
-// → Contifico
-{
-  cedula: "0922054366",
-  ruc: "0922054366001",
-  razon_social: "Juan Pérez",
-  tipo: "N",
-  email: "juan@example.com",
-  telefonos: "",
-  direccion: "",
-  es_extranjero: false
-}
-```
-
----
-
-## IVA Rate — Ecuador 2024
-
-**15%** (Ley de Régimen Tributario, reformed April 1, 2024 — previously 12%).
-
-Always use `subtotal_15` and `porcentaje_iva: 15`. If you have IVA-exempt items, use `subtotal_0`
-and `porcentaje_iva: 0` for those lines.
-
-```
-Total = subtotal_0 + subtotal_15 + iva + servicio
-iva   = subtotal_15 × 0.15
-```
-
----
-
-## Auth Header
-
-Contifico uses a custom `AUTHORIZATION` header (not `Authorization`). The adapter sends:
-
-```
-AUTHORIZATION: Token <CONTIFICO_TOKEN>
-```
-
-Our public API uses the same style:
-
-```
-Authorization: Token <API_KEY>
-```
-
----
-
-## Enabling Live Contifico
-
-1. Set `CONTIFICO_ENABLED=true` in your `.env`
-2. Add your `CONTIFICO_TOKEN` (from Contifico Settings > API)
-3. Set `CONTIFICO_BASE_URL=https://api.contifico.com/sistema/api/v1`
-4. In `documentoService.js` → `crearDocumento()`, add:
-
-```js
-if (env.CONTIFICO_ENABLED && tipoDocumento === TIPO_DOCUMENTO.FAC) {
-  const payload = contificoAdapter.toContificoDocumento(orden, doc);
-  const resp = await contificoAdapter.forwardToContifico(payload);
-  const mapped = contificoAdapter.fromContificoDocumento(resp);
-  // update doc with real SRI fields
-}
-```
-
-That's the **entire swap** — the rest of the codebase is unchanged.
-
----
-
-## Practisis / Other POS Adapters
-
-The same swap strategy works for Siigo, Practisis, or any other Ecuador POS. Add a new adapter
-file under `src/adapters/`, implement the same `toDocumento / fromDocumento` methods, and wire
-it via the `CONTIFICO_ENABLED`-style flag.
+`tests/contifico-compat.test.js` asserts the compat surface returns byte-for-byte
+Contifico shapes (bare arrays, string decimals, verbs, auth, forma_cobro mapping,
+SRI issuance). Run: `npm test`.
