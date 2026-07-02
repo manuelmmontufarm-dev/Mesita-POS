@@ -1,0 +1,20 @@
+[
+  {
+    "id": "COB0000000000001",
+    "forma_cobro": "TC",
+    "monto": "12.50",
+    "fecha": "01/07/2026",
+    "tipo_ping": "D",
+    "lote": "A1B2C3D4E5F6",
+    "numero_comprobante": "MSTA1A2B3C4D5E6",
+    "monto_propina": 0
+  },
+  {
+    "id": "COB0000000000003",
+    "forma_cobro": "EF",
+    "monto": "5.00",
+    "fecha": "01/07/2026",
+    "numero_comprobante": "MSTA9F8E7D6C5B4",
+    "monto_propina": 0
+  }
+]

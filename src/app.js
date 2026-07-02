@@ -17,6 +17,7 @@ const { requireApiKey } = require('./middlewares/auth');
 const { notFoundHandler, errorHandler } = require('./middlewares/errorHandler');
 const { connectDatabase } = require('./config/database');
 const apiV1Router = require('./api/v1/index');
+const apiV2Router = require('./api/v2/index');
 const { ensurePlatformReady } = require('./services/platformService');
 
 const app = express();
@@ -154,6 +155,11 @@ app.get('/sistema/api/v1/health/', (req, res) => {
 });
 
 app.use('/sistema/api/v1', requireApiKey, apiV1Router);
+
+// v2 — Contífico v2-compatible façade (frozen contract). Auth is raw-key
+// (no "Token " prefix) and lives inside the router so /health/ and
+// /contract-version/ stay public.
+app.use('/sistema/api/v2', apiV2Router);
 
 // Note: "/" is served directly as public/index.html by express.static above —
 // no redirect, so users never see a "redirecting…" hop on load.

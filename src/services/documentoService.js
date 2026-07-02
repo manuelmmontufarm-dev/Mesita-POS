@@ -3,6 +3,10 @@
 const { getPrisma } = require('../config/database');
 const { TIPO_DOCUMENTO, ESTADO_DOCUMENTO, PAGINATION } = require('../config/constants');
 const { generateSriMock } = require('../adapters/contificoAdapter');
+const env = require('../config/env');
+
+const MESITA_TABLE_PREFIX = 'MESITA_TABLE:';
+const ADICIONAL_MAX_LENGTH = 300; // Contifico wire limit (varchar 300)
 
 /**
  * List documentos with Contifico-compatible pagination and filters.
@@ -76,6 +80,33 @@ async function crearDocumento(body) {
   const isFAC = tipoDocumento === TIPO_DOCUMENTO.FAC;
   validateCobrosNoOverpay(body.cobros || [], Number(body.total || 0));
 
+  for (const field of ['adicional1', 'adicional2']) {
+    if (body[field] != null && String(body[field]).length > ADICIONAL_MAX_LENGTH) {
+      const err = new Error(`${field} supera el máximo de ${ADICIONAL_MAX_LENGTH} caracteres.`);
+      err.statusCode = 400;
+      throw err;
+    }
+  }
+
+  // Mesita table mapping: documents tied to an orden carry
+  // MESITA_TABLE:<mesaId> in the configured field unless the caller already
+  // provided a value for that field.
+  const extras = {
+    adicional1: body.adicional1 != null ? String(body.adicional1) : null,
+    adicional2: body.adicional2 != null ? String(body.adicional2) : null,
+    descripcion: body.descripcion || null,
+  };
+  const mappingField = env.MESITA_TABLE_FIELD;
+  if (!extras[mappingField] && body.orden_id) {
+    const orden = await prisma.orden.findUnique({
+      where: { id: body.orden_id },
+      select: { mesaId: true },
+    });
+    if (orden?.mesaId) {
+      extras[mappingField] = `${MESITA_TABLE_PREFIX}${orden.mesaId}`;
+    }
+  }
+
   // Resolve or upsert persona from cliente data
   let personaId = null;
   if (body.cliente) {
@@ -96,7 +127,9 @@ async function crearDocumento(body) {
       tipoRegistro: body.tipo_registro || 'CLI',
       estado: body.estado || ESTADO_DOCUMENTO.PENDIENTE,
       electronico: body.electronico !== undefined ? body.electronico : true,
-      descripcion: body.descripcion || null,
+      descripcion: extras.descripcion,
+      adicional1: extras.adicional1,
+      adicional2: extras.adicional2,
       subtotal0: body.subtotal_0 || 0,
       subtotal15: body.subtotal_15 || 0,
       iva: body.iva || 0,

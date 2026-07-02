@@ -268,6 +268,8 @@ async function _autoCrearFactura(prisma, session, montoPagado) {
  */
 function verifyWebhookSignature(rawBody, signature) {
   if (!signature) return false;
+  // Fail closed: no secret configured ⇒ no webhook is ever valid.
+  if (!env.MESITAQR_WEBHOOK_SECRET) return false;
   const expected = crypto
     .createHmac('sha256', env.MESITAQR_WEBHOOK_SECRET)
     .update(rawBody)

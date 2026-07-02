@@ -1,0 +1,8 @@
+{
+  "tipo": "N",
+  "cedula": "0912345678",
+  "razon_social": "Guest Example",
+  "email": "guest@example.com",
+  "es_cliente": true,
+  "es_proveedor": false
+}

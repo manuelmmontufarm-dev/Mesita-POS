@@ -102,8 +102,41 @@ jest.mock('@prisma/client', () => {
       create: jest.fn().mockResolvedValue({}),
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
+    // Platform bootstrap models (multi-tenant registry in public schema)
+    platformRestaurant: {
+      findUnique: jest.fn().mockResolvedValue({
+        id: 'rest-demo-1',
+        tenantSchema: 'tenant_demo',
+        slug: 'demo-restaurant',
+        name: 'Demo Restaurant',
+        serviceChargeEnabled: true,
+        serviceChargeRate: 0.1,
+        setupCompleted: true,
+      }),
+      findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 'rest-demo-1', tenantSchema: 'tenant_demo' }),
+      create: jest.fn().mockResolvedValue({ id: 'rest-demo-1', tenantSchema: 'tenant_demo' }),
+      update: jest.fn().mockResolvedValue({ id: 'rest-demo-1', tenantSchema: 'tenant_demo' }),
+    },
+    platformUser: {
+      findUnique: jest.fn().mockResolvedValue(null),
+      create: jest.fn().mockResolvedValue({ id: 'user-1' }),
+    },
+    platformMembership: { findUnique: jest.fn().mockResolvedValue(null) },
+    platformSession: {
+      findUnique: jest.fn().mockResolvedValue(null),
+      updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+    },
+    categoria: { upsert: jest.fn().mockResolvedValue({}) },
+    producto: { upsert: jest.fn().mockResolvedValue({}) },
     $connect: jest.fn().mockResolvedValue(undefined),
     $disconnect: jest.fn().mockResolvedValue(undefined),
+    // Platform bootstrap (ensurePlatformReady/ensureTenantSchema) runs raw SQL.
+    // tableExists() checks Boolean(rows[0].name) — null ⇒ table absent ⇒ copy skipped.
+    $executeRawUnsafe: jest.fn().mockResolvedValue(0),
+    $queryRawUnsafe: jest.fn().mockResolvedValue([{ name: null }]),
+    $transaction: jest.fn(async (arg) =>
+      typeof arg === 'function' ? arg(prismaMock) : Promise.all(arg)
+    ),
   };
 
   return { PrismaClient: jest.fn(() => prismaMock) };

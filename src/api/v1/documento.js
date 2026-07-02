@@ -162,6 +162,8 @@ function formatDocumento(doc) {
     estado: doc.estado,
     electronico: doc.electronico,
     descripcion: doc.descripcion,
+    adicional1: doc.adicional1 ?? null,
+    adicional2: doc.adicional2 ?? null,
     subtotal_0: Number(doc.subtotal0 || 0),
     subtotal_15: Number(doc.subtotal15 || 0),
     iva: Number(doc.iva || 0),
