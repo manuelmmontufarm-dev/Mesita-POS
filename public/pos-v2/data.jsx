@@ -97,7 +97,7 @@ function ordenCount(orden) {
 }
 
 const ESTADO_MESA = { L: "Libre", O: "Ocupada", P: "Por cobrar", C: "Pagada" };
-const ZONE_ORDER = ["Interior", "Terraza", "Bar", "Privado", "Demo"];
+const ZONE_ORDER = ["Interior", "Terraza", "Bar", "Privado", "Demo", "General"];
 
 const RESTAURANT = {
   nombre: "Restaurante Demo Mesita",

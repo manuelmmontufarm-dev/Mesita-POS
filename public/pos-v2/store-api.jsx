@@ -217,7 +217,20 @@ function createStore() {
         (mesaEstado === "L" || mesaEstado === "C") &&
         !prev.paidFlash;
 
-      state.mesas[idx] = mapMesa({ ...prev, estado: mesaEstado }, session);
+      // mapMesa expects the RAW API row (capacidad/ubicacion). `prev` is the
+      // already-mapped mesa (cap/zona) — spreading it dropped both fields, so
+      // every poll refresh reset cap→4 and zona→"General": cards visibly
+      // migrated to a General section one by one right after entering.
+      state.mesas[idx] = mapMesa(
+        {
+          id: prev.id,
+          nombre: prev.nombre,
+          capacidad: prev.cap,
+          ubicacion: prev.zona,
+          estado: mesaEstado,
+        },
+        session,
+      );
 
       if (remoteClose && prevMesa) {
         handleMesaClosedRemotely(mesaId, prevMesa, prevMesa._session);
@@ -319,7 +332,10 @@ function createStore() {
         icon: p.emoji || "🍽️",
       }));
 
-      const mesaRows = boot.mesas || [];
+      // Belt & suspenders with the server-side `activa: true` filter — an
+      // inactive table must never render on the floor (it shows up as a
+      // duplicate "Mesa 1" ghost when someone deactivates a test table).
+      const mesaRows = (boot.mesas || []).filter((m) => m.activa !== false);
       state.mesas = await Promise.all(
         mesaRows.map(async (m) => {
           try {
