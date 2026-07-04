@@ -102,6 +102,19 @@ jest.mock('@prisma/client', () => {
       create: jest.fn().mockResolvedValue({}),
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
+    // ensurePlatformReady (app.js DB-init gate) runs DDL + demo-tenant checks
+    // on every first API hit — without these the gate throws and every route
+    // 500s before auth even runs.
+    platformRestaurant: {
+      findUnique: jest.fn().mockResolvedValue({
+        id: 'rest-demo',
+        tenantSchema: 'tenant_demo',
+        slug: 'demo-restaurant',
+        name: 'Demo Restaurant',
+      }),
+    },
+    $executeRawUnsafe: jest.fn().mockResolvedValue(0),
+    $queryRawUnsafe: jest.fn().mockResolvedValue([]),
     $connect: jest.fn().mockResolvedValue(undefined),
     $disconnect: jest.fn().mockResolvedValue(undefined),
   };
