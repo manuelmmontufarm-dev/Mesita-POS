@@ -44,6 +44,12 @@ Formato de cada entrada:
 
 ## 🗂️ Registro de cambios (lo más nuevo primero)
 
+### 2026-07-04 — Fix del mapa de mesas: ya no se re-acomoda al entrar + mesas inactivas fuera
+
+- **Qué:** `public/pos-v2/store-api.jsx` (`refreshMesaSession` + filtro en `loadBootstrap`), `src/api/v1/bootstrap.js` (`activa: true`), `public/pos-v2/data.jsx` (`ZONE_ORDER` + "General"), `tests/bootstrap.test.js` (NUEVO), `dist/` recompilado.
+- **Por qué:** Manuel reportó dos glitches en producción: al entrar, las mesas ocupadas "saltaban" de su sección una por una, y aparecían dos "Mesa 1".
+- **Qué hace:** (1) el poll de 1.5s re-mapeaba cada mesa pasándole el objeto YA mapeado (`cap`/`zona`) a `mapMesa`, que espera los campos crudos (`capacidad`/`ubicacion`) — cada refresh reseteaba capacidad→4 y zona→"General" y la tarjeta migraba de sección; ahora se pasan los campos crudos y el mapa queda estable (verificado 6s/4 ticks en producción). (2) `/bootstrap/` ahora solo devuelve mesas activas — la "Mesa 1" duplicada era una mesa de prueba desactivada (SebastianArea) que igual se pintaba; fijado con test. Suite 25/25.
+
 ### 2026-07-04 — Carga inicial: JSX precompilado (adiós Babel en el navegador) + pantalla de arranque con marca
 
 - **Qué:** `public/index.html`, `public/pos-v2.html`, `public/pos-v2/auth-gate.jsx`, `public/pos-v2/pos.css` (estilos `.pos-boot`), `scripts/build-pos-v2.js` (NUEVO, `npm run build:pos-v2`), `public/pos-v2/dist/` + `vendor/` (compilados, COMMITEADOS), `vercel.json` (cache headers), `tests/*.test.js` (mock Prisma reparado). Rama `polish-loading` (desde `main`), SIN merge.
