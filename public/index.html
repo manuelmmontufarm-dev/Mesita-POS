@@ -19,21 +19,19 @@
 <body>
 <div id="root"></div>
 
-<script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" crossorigin="anonymous"></script>
-<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
-<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin="anonymous"></script>
-
-<script type="text/babel" src="/pos-v2/data.jsx"></script>
-<script type="text/babel" src="/pos-v2/store-api.jsx"></script>
-<script type="text/babel" src="/pos-v2/ui.jsx"></script>
-<script type="text/babel" src="/pos-v2/floor.jsx"></script>
-<script type="text/babel" src="/pos-v2/cobro.jsx"></script>
-<script type="text/babel" src="/pos-v2/order.jsx"></script>
-<script type="text/babel" src="/pos-v2/history.jsx"></script>
-<script type="text/babel" src="/pos-v2/app.jsx"></script>
-<script type="text/babel" src="/pos-v2/auth-gate.jsx"></script>
-<script type="text/babel">
-  ReactDOM.createRoot(document.getElementById("root")).render(<BootApp />);
-</script>
+<!-- Precompiled (npm run build:pos-v2) — no Babel in the browser. `defer`
+     keeps parsing/painting unblocked and preserves execution order. -->
+<script defer src="/pos-v2/vendor/react.production.min.js"></script>
+<script defer src="/pos-v2/vendor/react-dom.production.min.js"></script>
+<script defer src="/pos-v2/dist/data.js"></script>
+<script defer src="/pos-v2/dist/store-api.js"></script>
+<script defer src="/pos-v2/dist/ui.js"></script>
+<script defer src="/pos-v2/dist/floor.js"></script>
+<script defer src="/pos-v2/dist/cobro.js"></script>
+<script defer src="/pos-v2/dist/order.js"></script>
+<script defer src="/pos-v2/dist/history.js"></script>
+<script defer src="/pos-v2/dist/app.js"></script>
+<script defer src="/pos-v2/dist/auth-gate.js"></script>
+<script defer src="/pos-v2/dist/boot.js"></script>
 </body>
 </html>
