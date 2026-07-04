@@ -36,13 +36,19 @@ Formato de cada entrada:
 ## 🟢 En qué estamos ahora
 
 - **Estado general:** POS + guest app en Vercel (`mesita-pos.vercel.app`, `mesitademo-two.vercel.app`).
-- **Última área trabajada:** UX POS v2 — ítems optimistas con indicador de sync + cierre remoto de mesa (sin pantalla en blanco) + historial de cobros Mesita.
-- **Pendiente / próximos pasos:** deploy ambos proyectos y validar E2E mesa 1 con dos teléfonos.
+- **Última área trabajada:** carga inicial — JSX precompilado (sin Babel en el navegador) + pantalla de arranque con marca (rama `polish-loading`, pendiente de merge por Manuel).
+- **Pendiente / próximos pasos:** Manuel revisa el preview de `polish-loading` y decide el merge; después de editar cualquier `.jsx` correr `npm run build:pos-v2` y commitear `dist/`.
 - **Cosas a tener cuidado:** mesas 1–4 arrancan vacías en guest — ítems vienen del POS. El cierre remoto se detecta en el poll (`refreshMesaSession`).
 
 ---
 
 ## 🗂️ Registro de cambios (lo más nuevo primero)
+
+### 2026-07-04 — Carga inicial: JSX precompilado (adiós Babel en el navegador) + pantalla de arranque con marca
+
+- **Qué:** `public/index.html`, `public/pos-v2.html`, `public/pos-v2/auth-gate.jsx`, `public/pos-v2/pos.css` (estilos `.pos-boot`), `scripts/build-pos-v2.js` (NUEVO, `npm run build:pos-v2`), `public/pos-v2/dist/` + `vendor/` (compilados, COMMITEADOS), `vercel.json` (cache headers), `tests/*.test.js` (mock Prisma reparado). Rama `polish-loading` (desde `main`), SIN merge.
+- **Por qué:** La primera pantalla era lo más flojo en demos: página blanca → spinner gris genérico, porque el navegador descargaba @babel/standalone (~200 KB desde unpkg) y transpilaba 9 archivos JSX en vivo ANTES de pintar nada. Además `main` traía los tests 23/24 en rojo (el mock de Prisma no cubría el bootstrap de plataforma que añadió `148a8eb`).
+- **Qué hace:** (1) Los .jsx se compilan en build local (`npm run build:pos-v2` → `dist/`, 73 KB total) y React/ReactDOM quedan vendored — cero Babel y cero unpkg en producción; todos los scripts van con `defer`, así el HTML pinta al instante. (2) Un shell estático dentro de `#root` muestra el logo Mesita con respiración suave, wordmark "Mesita POS / Consola de caja", barra shimmer naranja→verde sobre crema y copy por etapas ("Preparando la caja…" → "Conectando con Mesita API…") — idéntico al loader de React, así el relevo es invisible; respeta `prefers-reduced-motion`. (3) Assets estáticos con cache 1h + stale-while-revalidate. Tests 24/24 verdes; app verificada en preview local (mapa de mesas OK, consola limpia).
 
 ### 2026-06-30 — POS poll 2500→1500ms (optimización de sync)
 - **Qué:** `public/pos-v2/store-api.jsx` (`POLL_MS` 2500→1500).
