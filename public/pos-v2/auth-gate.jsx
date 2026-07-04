@@ -53,23 +53,24 @@ function AuthGate({ children }) {
 
   if (err) {
     return (
-      <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24, fontFamily: "Inter, system-ui" }}>
-        <div style={{ maxWidth: 420, textAlign: "center" }}>
-          <h1 style={{ fontSize: "1.4rem", marginBottom: 8 }}>Mesita POS</h1>
-          <p style={{ color: "#666", marginBottom: 16 }}>{err}</p>
-          <button className="btn btn-primary" onClick={() => window.location.reload()}>Reintentar</button>
-        </div>
+      <div className="pos-boot">
+        <img className="pos-boot-logo" src="/logo.svg" alt="" width="64" height="64" style={{ animation: "none" }} />
+        <div className="pos-boot-name">Mesita POS<small>Consola de caja</small></div>
+        <p style={{ margin: 0, maxWidth: 380, color: "var(--ink-mut)", fontSize: 13.5 }}>{err}</p>
+        <button className="btn btn-primary" onClick={() => window.location.reload()}>Reintentar</button>
       </div>
     );
   }
 
   if (!ready || busy || store.state.loading) {
+    // Same markup as the static shell in index.html — the swap is invisible,
+    // only the message advances to show real progress.
     return (
-      <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", fontFamily: "Inter, system-ui" }}>
-        <div style={{ textAlign: "center", color: "#666" }}>
-          <div className="spin" style={{ margin: "0 auto 12px", width: 28, height: 28, border: "3px solid #eee", borderTopColor: "var(--brand, #ea580c)", borderRadius: "50%" }} />
-          Conectando con Mesita API…
-        </div>
+      <div className="pos-boot" aria-live="polite">
+        <img className="pos-boot-logo" src="/logo.svg" alt="" width="64" height="64" />
+        <div className="pos-boot-name">Mesita POS<small>Consola de caja</small></div>
+        <div className="pos-boot-bar" role="progressbar" aria-label="Cargando Mesita POS" />
+        <div className="pos-boot-msg">Conectando con Mesita API…</div>
       </div>
     );
   }

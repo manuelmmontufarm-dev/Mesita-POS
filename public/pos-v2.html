@@ -12,7 +12,16 @@
 <link rel="stylesheet" href="/pos-v2/pos.css" />
 </head>
 <body>
-<div id="root"></div>
+<div id="root">
+  <!-- Static boot shell: first paint happens straight from HTML, before any
+       JS. React replaces it on mount with the identical AuthGate loader. -->
+  <div class="pos-boot" aria-live="polite">
+    <img class="pos-boot-logo" src="/logo.svg" alt="" width="64" height="64" />
+    <div class="pos-boot-name">Mesita POS<small>Consola de caja</small></div>
+    <div class="pos-boot-bar" role="progressbar" aria-label="Cargando Mesita POS"></div>
+    <div class="pos-boot-msg">Preparando la caja…</div>
+  </div>
+</div>
 
 <!-- Precompiled (npm run build:pos-v2) — no Babel in the browser. `defer`
      keeps parsing/painting unblocked and preserves execution order. -->

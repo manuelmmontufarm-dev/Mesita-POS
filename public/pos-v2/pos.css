@@ -439,3 +439,76 @@ input, select { font-family: inherit; }
   }
   @page { margin: 12mm; }
 }
+
+/* ---------- First-load boot screen ----------
+   Shared by the static shell inside #root (index.html / pos-v2.html — paints
+   before ANY JavaScript) and AuthGate's loading state, so the handoff from
+   "HTML shell" → "React loader" is pixel-identical and nothing flashes. */
+.pos-boot {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 24px;
+  background: var(--bg);
+  color: var(--ink-mut);
+  font-family: Inter, system-ui, sans-serif;
+  text-align: center;
+}
+.pos-boot-logo {
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  box-shadow: 0 12px 32px rgba(232, 106, 51, 0.22);
+  animation: posBootBreathe 1.8s ease-in-out infinite;
+}
+.pos-boot-name {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.pos-boot-name small {
+  display: block;
+  margin-top: 3px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-mut);
+}
+.pos-boot-bar {
+  position: relative;
+  width: 128px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+.pos-boot-bar::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 40%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--brand), var(--ok));
+  animation: posBootSlide 1.15s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+.pos-boot-msg {
+  font-size: 13px;
+  font-weight: 500;
+  min-height: 18px; /* both boot messages share one line — no layout shift */
+}
+@keyframes posBootBreathe {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.05); opacity: 0.92; }
+}
+@keyframes posBootSlide {
+  0% { transform: translateX(-110%); }
+  100% { transform: translateX(290%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pos-boot-logo, .pos-boot-bar::before { animation: none !important; }
+}
