@@ -5,6 +5,34 @@
 function Floor({ onOpen }) {
   const store = useStore();
   const mesas = store.state.mesas;
+  const [showCreate, setShowCreate] = React.useState(false);
+  const [name, setName] = React.useState("");
+  const [capacity, setCapacity] = React.useState("4");
+  const [zone, setZone] = React.useState("Salón");
+  const [saving, setSaving] = React.useState(false);
+
+  async function createTable(event) {
+    event.preventDefault();
+    const nombre = name.trim();
+    if (!nombre || saving) return;
+    setSaving(true);
+    try {
+      await store.createTable({
+        nombre,
+        capacidad: Math.max(1, Math.min(30, Number(capacity) || 4)),
+        ubicacion: zone.trim() || "General",
+      });
+      toast(`${nombre} añadida al mapa`, "ok", "✓");
+      setName("");
+      setCapacity("4");
+      setZone("Salón");
+      setShowCreate(false);
+    } catch (error) {
+      toast(error?.message || "No se pudo añadir la mesa", "err", "!");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   const groups = {};
   for (const m of mesas) { (groups[m.zona] = groups[m.zona] || []).push(m); }
@@ -23,12 +51,70 @@ function Floor({ onOpen }) {
           <h1>Mapa de mesas</h1>
           <p>{activas} {activas === 1 ? "mesa activa" : "mesas activas"} · {libres} {libres === 1 ? "libre" : "libres"} · toca una mesa para tomar o cobrar su orden.</p>
         </div>
-        <div className="legend">
-          {["L", "O", "P", "C"].map((c) => (
-            <span key={c} className={"badge " + c}><span className="d" />{ESTADO_MESA[c]}</span>
-          ))}
+        <div className="floor-actions">
+          <div className="legend">
+            {["L", "O", "P", "C"].map((c) => (
+              <span key={c} className={"badge " + c}><span className="d" />{ESTADO_MESA[c]}</span>
+            ))}
+          </div>
+          <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
+            <Icon name="plus" size={16} /> Añadir mesa
+          </button>
         </div>
       </div>
+
+      {showCreate && (
+        <Modal
+          title="Añadir mesa"
+          sub="Crea una mesa nueva y agrégala de inmediato al mapa del POS."
+          onClose={() => !saving && setShowCreate(false)}
+          footer={(
+            <>
+              <button className="btn btn-outline" disabled={saving} onClick={() => setShowCreate(false)}>Cancelar</button>
+              <button className="btn btn-primary" form="create-table-form" type="submit" disabled={saving || !name.trim()}>
+                {saving ? "Añadiendo…" : "Añadir mesa"}
+              </button>
+            </>
+          )}
+        >
+          <form id="create-table-form" className="create-table-form" onSubmit={createTable}>
+            <div className="field full">
+              <label htmlFor="new-table-name">Nombre</label>
+              <input
+                id="new-table-name"
+                autoFocus
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                placeholder="Mesa 13"
+                maxLength={80}
+                required
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="new-table-capacity">Capacidad</label>
+              <input
+                id="new-table-capacity"
+                type="number"
+                min="1"
+                max="30"
+                value={capacity}
+                onChange={(event) => setCapacity(event.target.value)}
+                required
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="new-table-zone">Zona</label>
+              <input
+                id="new-table-zone"
+                value={zone}
+                onChange={(event) => setZone(event.target.value)}
+                placeholder="Salón, Terraza…"
+                maxLength={80}
+              />
+            </div>
+          </form>
+        </Modal>
+      )}
 
       {zones.map((z) => (
         <div className="zone" key={z}>

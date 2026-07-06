@@ -140,6 +140,9 @@ input, select { font-family: inherit; }
 .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; flex-wrap: wrap; margin-bottom: 22px; }
 .page-head h1 { font-size: 1.7rem; font-weight: 780; letter-spacing: -0.03em; }
 .page-head p { color: var(--ink-mut); font-size: .95rem; margin-top: 4px; }
+.floor-actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; flex-wrap: wrap; }
+.create-table-form { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.create-table-form .full { grid-column: 1 / -1; }
 
 /* legend */
 .legend { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -186,6 +189,12 @@ input, select { font-family: inherit; }
 .tcard.is-paid { border-color: rgba(47,158,115,.55); box-shadow: 0 0 0 3px var(--ok-soft); }
 @keyframes turn { 0% { transform: scale(1); } 45% { transform: scale(.92); } 100% { transform: scale(1); } }
 .tcard.turning { animation: turn .8s var(--ease); }
+
+@media (max-width: 680px) {
+  .floor-actions { width: 100%; justify-content: space-between; }
+  .create-table-form { grid-template-columns: 1fr; }
+  .create-table-form .full { grid-column: auto; }
+}
 
 /* ---------- POS / order screen ---------- */
 .order-wrap { position: fixed; inset: 0; top: 63px; display: grid; grid-template-columns: 1fr 440px; background: var(--bg); }

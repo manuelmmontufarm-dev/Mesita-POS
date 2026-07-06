@@ -44,6 +44,12 @@ Formato de cada entrada:
 
 ## 🗂️ Registro de cambios (lo más nuevo primero)
 
+### 2026-07-06 — Añadir mesas desde el mapa del POS
+
+- **Qué:** `public/pos-v2/floor.jsx`, `store-api.jsx`, `pos.css` y sus bundles de `dist/`; también se limpió y documentó `.env.example`.
+- **Por qué:** el mapa del POS no tenía una acción para crear mesas y el ejemplo de entorno contenía marcadores de conflicto y valores que no debían reutilizarse como credenciales/configuración reales.
+- **Qué hace:** agrega el botón **Añadir mesa**, un formulario validado de nombre/capacidad/zona, creación por `POST /mesa/`, actualización inmediata del mapa y mensajes de éxito/error. El ejemplo de entorno vuelve a ser seguro y explica las opciones de bootstrap. Verificado en el navegador con una API local simulada, bundles recompilados, 25/25 tests y `npm audit` sin vulnerabilidades.
+
 ### 2026-07-06 — Re-tema visual: paleta Contífico/Siigo (azul) en todo el POS
 
 - **Qué:** `public/pos-v2/pos.css` (tokens `:root` + sombras + rgba hardcodeados + topbar), `public/logo.svg`, `public/favicon.svg`, `public/favicon.png`, `public/apple-touch-icon.png` (regenerados en azul), `theme-color` en ambos HTML, `ui.jsx` (QR falso en navy), `dist/` recompilado.

@@ -382,6 +382,19 @@ function createStore() {
     setServiceEnabled(v) { state.serviceEnabled = v; emit(); },
     setPrint(obj) { state.print = obj; emit(); },
 
+    async createTable({ nombre, capacidad, ubicacion }) {
+      const created = await api("/mesa/", {
+        method: "POST",
+        json: { nombre, capacidad, ubicacion },
+      });
+      state.mesas = [...state.mesas, mapMesa(created, null)].sort((a, b) =>
+        a.nombre.localeCompare(b.nombre, "es", { numeric: true }),
+      );
+      log("POST", `/mesa/ {nombre:${nombre}}`, "ok");
+      emit();
+      return created;
+    },
+
     async openMesa(id) {
       const m = mesaById(id);
       if (!m) return null;
