@@ -56,23 +56,32 @@ async function ensureDemoRestaurant() {
     setupCompleted: true,
   };
 
-  return prisma.platformRestaurant.upsert({
+  const existing = await prisma.platformRestaurant.findUnique({
     where: { tenantSchema: DEMO_TENANT_SCHEMA },
-    create: demoData,
-    update: {
-      slug: demoData.slug,
-      name: demoData.name,
-      legalName: demoData.legalName,
-      ruc: demoData.ruc,
-      address: demoData.address,
-      city: demoData.city,
-      phone: demoData.phone,
-      email: demoData.email,
-      serviceChargeEnabled: demoData.serviceChargeEnabled,
-      serviceChargeRate: demoData.serviceChargeRate,
-      setupCompleted: demoData.setupCompleted,
-    },
   });
+
+  const brandingFields = {
+    slug: demoData.slug,
+    name: demoData.name,
+    legalName: demoData.legalName,
+    ruc: demoData.ruc,
+    address: demoData.address,
+    city: demoData.city,
+    phone: demoData.phone,
+    email: demoData.email,
+    serviceChargeEnabled: demoData.serviceChargeEnabled,
+    serviceChargeRate: demoData.serviceChargeRate,
+    setupCompleted: demoData.setupCompleted,
+  };
+
+  if (existing) {
+    return prisma.platformRestaurant.update({
+      where: { tenantSchema: DEMO_TENANT_SCHEMA },
+      data: brandingFields,
+    });
+  }
+
+  return prisma.platformRestaurant.create({ data: demoData });
 }
 
 async function registerRestaurant(body) {

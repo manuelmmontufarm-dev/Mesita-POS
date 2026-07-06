@@ -7,7 +7,10 @@
  */
 const request = require('supertest');
 
+process.env.NODE_ENV = 'test';
 process.env.API_KEY = process.env.API_KEY || 'test-api-key';
+process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test';
+process.env.APP_BASE_URL = 'http://localhost:3000';
 
 const mockMesa = {
   id: 'mesa-01',
@@ -42,6 +45,18 @@ jest.mock('@prisma/client', () => {
         slug: 'demo-restaurant',
         name: 'Demo Restaurant',
       }),
+      update: jest.fn().mockImplementation(({ data }) =>
+        Promise.resolve({
+          id: 'rest-demo',
+          tenantSchema: 'tenant_demo',
+          slug: 'demo-restaurant',
+          name: 'Demo Restaurant',
+          ...data,
+        })
+      ),
+      create: jest.fn().mockImplementation(({ data }) =>
+        Promise.resolve({ id: 'rest-new', ...data })
+      ),
     },
     $executeRawUnsafe: jest.fn().mockResolvedValue(0),
     $queryRawUnsafe: jest.fn().mockResolvedValue([]),
@@ -57,17 +72,18 @@ beforeAll(() => {
 });
 
 describe('GET /sistema/api/v1/bootstrap/', () => {
-  it('queries ONLY active mesas (activa: true) for the floor map', async () => {
+  it('returns only active mesas (activa !== false) for the floor map', async () => {
+    mockMesaFindMany.mockResolvedValueOnce([
+      mockMesa,
+      { ...mockMesa, id: 'mesa-ghost', nombre: 'Mesa ghost', activa: false },
+    ]);
+
     const res = await request(app)
       .get('/sistema/api/v1/bootstrap/')
       .set('Authorization', `Token ${process.env.API_KEY}`);
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body.mesas)).toBe(true);
-
-    const mesaCalls = mockMesaFindMany.mock.calls;
-    expect(mesaCalls.length).toBeGreaterThan(0);
-    const bootstrapCall = mesaCalls.find((c) => c[0]?.where?.activa !== undefined);
-    expect(bootstrapCall).toBeDefined();
-    expect(bootstrapCall[0].where.activa).toBe(true);
+    expect(res.body.mesas).toHaveLength(1);
+    expect(res.body.mesas.every((m) => m.activa !== false)).toBe(true);
   });
 });

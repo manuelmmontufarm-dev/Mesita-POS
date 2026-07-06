@@ -112,6 +112,18 @@ jest.mock('@prisma/client', () => {
         slug: 'demo-restaurant',
         name: 'Demo Restaurant',
       }),
+      update: jest.fn().mockImplementation(({ data }) =>
+        Promise.resolve({
+          id: 'rest-demo',
+          tenantSchema: 'tenant_demo',
+          slug: 'demo-restaurant',
+          name: 'Demo Restaurant',
+          ...data,
+        })
+      ),
+      create: jest.fn().mockImplementation(({ data }) =>
+        Promise.resolve({ id: 'rest-new', ...data })
+      ),
     },
     $executeRawUnsafe: jest.fn().mockResolvedValue(0),
     $queryRawUnsafe: jest.fn().mockResolvedValue([]),
