@@ -7,7 +7,7 @@
  * Creates:
  *   - 4 Categorias
  *   - 12 Productos (menu items)
- *   - 10 Mesas
+ *   - 5 Mesas (La Doña Pepa catalog: 1–4 + 12)
  *   - 1 demo Persona
  */
 
@@ -45,18 +45,12 @@ async function seed() {
   ]);
   console.log(`✓ ${productos.length} productos`);
 
-  // Mesas
+  // Mesas — aligned with mesita-app demo catalog (La Doña Pepa)
   const mesaData = [
     { id: 'mesa-01', nombre: 'Mesa 1', capacidad: 4, ubicacion: 'Interior' },
     { id: 'mesa-02', nombre: 'Mesa 2', capacidad: 4, ubicacion: 'Interior' },
     { id: 'mesa-03', nombre: 'Mesa 3', capacidad: 6, ubicacion: 'Interior' },
     { id: 'mesa-04', nombre: 'Mesa 4', capacidad: 2, ubicacion: 'Interior' },
-    { id: 'mesa-05', nombre: 'Mesa 5', capacidad: 4, ubicacion: 'Terraza' },
-    { id: 'mesa-06', nombre: 'Mesa 6', capacidad: 4, ubicacion: 'Terraza' },
-    { id: 'mesa-07', nombre: 'Mesa 7', capacidad: 8, ubicacion: 'Terraza' },
-    { id: 'mesa-08', nombre: 'Mesa 8', capacidad: 2, ubicacion: 'Bar' },
-    { id: 'mesa-09', nombre: 'Mesa 9', capacidad: 4, ubicacion: 'Bar' },
-    { id: 'mesa-10', nombre: 'Mesa 10', capacidad: 6, ubicacion: 'Privado' },
     { id: 'mesa-12', nombre: 'Mesa 12', capacidad: 6, ubicacion: 'Demo' },
   ];
   const mesas = await Promise.all(
@@ -64,11 +58,24 @@ async function seed() {
       prisma.mesa.upsert({
         where: { id: m.id },
         create: { ...m, estado: 'L', activa: true },
-        update: {},
+        update: { activa: true, ubicacion: m.ubicacion, nombre: m.nombre },
       })
     )
   );
-  console.log(`✓ ${mesas.length} mesas`);
+  console.log(`✓ ${mesas.length} mesas activas`);
+
+  const legacyIds = ['mesa-05', 'mesa-06', 'mesa-07', 'mesa-08', 'mesa-09', 'mesa-10'];
+  await prisma.orden.updateMany({
+    where: { mesaId: { in: legacyIds }, estado: 'A' },
+    data: { estado: 'C', cerradaAt: new Date() },
+  });
+  const deactivated = await prisma.mesa.updateMany({
+    where: { id: { in: legacyIds } },
+    data: { activa: false, estado: 'L' },
+  });
+  if (deactivated.count > 0) {
+    console.log(`✓ ${deactivated.count} mesas legacy desactivadas (05–10)`);
+  }
 
   // Demo persona
   await prisma.persona.upsert({
@@ -89,7 +96,7 @@ async function seed() {
   console.log('✓ 1 persona demo');
 
   console.log('\n✅ Seed completado exitosamente.');
-  console.log('   Mesas: mesa-01 … mesa-10, mesa-12 (demo)');
+  console.log('   Mesas activas: mesa-01 … mesa-04, mesa-12');
   console.log('   API Key: ver variable API_KEY en .env');
 
   if (process.env.RUN_PLATFORM_BOOTSTRAP === '1') {

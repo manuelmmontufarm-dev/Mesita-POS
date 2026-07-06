@@ -14,17 +14,16 @@ const { asyncHandler } = require('../../middlewares/errorHandler');
 router.get('/', asyncHandler(async (req, res) => {
   const restaurantId = req.auth?.restaurant?.id;
   const [mesasResult, productosResult, restaurant] = await Promise.all([
-    // Only active tables reach the floor map — deactivated ones (admin
-    // panel) must not render as duplicate/ghost cards in the POS.
-    mesaService.listarMesas({ result_size: 100, activa: true }),
+    mesaService.listarMesas({ result_size: 100 }),
     catalogoService.listarProductos({ result_size: 200, disponible: true }),
     restaurantId
       ? platformService.getSettings(restaurantId).catch(() => req.auth?.restaurant || null)
       : Promise.resolve(req.auth?.restaurant || null),
   ]);
 
+  const activeMesas = (mesasResult.results || []).filter((m) => m.activa !== false);
   const mesas = await Promise.all(
-    (mesasResult.results || []).map(async (m) => {
+    activeMesas.map(async (m) => {
       const activeOrden = (m.ordenes && m.ordenes[0]) || null;
       let orden_activa_total = null;
       if (activeOrden) {

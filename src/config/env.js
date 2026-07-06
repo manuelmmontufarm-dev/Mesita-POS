@@ -7,13 +7,22 @@ const env = {
   PORT: parseInt(process.env.PORT || '3000', 10),
   DATABASE_URL: process.env.DATABASE_URL || '',
 
-  // API Key for Authorization: Token <KEY> (Contifico-style auth)
-  API_KEY: process.env.API_KEY || 'demo-api-key-change-in-production',
+  // API Key for Authorization: Token <KEY> (v1) / raw key (v2, Contifico-style).
+  // FAIL CLOSED in production: the demo fallback must never satisfy auth on a
+  // deploy that forgot to set API_KEY. An empty key can never match — both
+  // auth middlewares reject empty credentials before comparing.
+  API_KEY:
+    process.env.API_KEY ||
+    (process.env.NODE_ENV === 'production' ? '' : 'demo-api-key-change-in-production'),
 
   // MesitaQR / Paga Ya
   MESITAQR_BASE_URL: process.env.MESITAQR_BASE_URL || 'https://api.pagaya.ec',
   MESITAQR_API_KEY: process.env.MESITAQR_API_KEY || '',
-  MESITAQR_WEBHOOK_SECRET: process.env.MESITAQR_WEBHOOK_SECRET || 'demo-webhook-secret',
+  // Same fail-closed rule: an empty secret disables webhook acceptance rather
+  // than allowing HMAC forgery with a public default.
+  MESITAQR_WEBHOOK_SECRET:
+    process.env.MESITAQR_WEBHOOK_SECRET ||
+    (process.env.NODE_ENV === 'production' ? '' : 'demo-webhook-secret'),
   MESITAQR_QR_EXPIRY_MINUTES: parseInt(process.env.MESITAQR_QR_EXPIRY_MINUTES || '15', 10),
 
   // Contifico (for future live wiring — today we mock)
@@ -21,10 +30,21 @@ const env = {
   CONTIFICO_TOKEN: process.env.CONTIFICO_TOKEN || '',
   CONTIFICO_ENABLED: process.env.CONTIFICO_ENABLED === 'true',
 
+  // Mesita table-mapping field written onto PRE/FAC documents
+  // (frozen contract: MESITA_TABLE:<mesaId> in adicional1 by default;
+  //  allowed: adicional1 | adicional2 | descripcion)
+  MESITA_TABLE_FIELD: ['adicional1', 'adicional2', 'descripcion'].includes(
+    process.env.MESITA_TABLE_FIELD
+  )
+    ? process.env.MESITA_TABLE_FIELD
+    : 'adicional1',
+
   // Restaurant defaults
-  RESTAURANT_RUC: process.env.RESTAURANT_RUC || '0900000001001',
-  RESTAURANT_RAZON_SOCIAL: process.env.RESTAURANT_RAZON_SOCIAL || 'Demo Restaurante S.A.',
-  RESTAURANT_DIRECCION: process.env.RESTAURANT_DIRECCION || 'Guayaquil, Ecuador',
+  RESTAURANT_RUC: process.env.RESTAURANT_RUC || '1790123456001',
+  RESTAURANT_RAZON_SOCIAL: process.env.RESTAURANT_RAZON_SOCIAL || 'La Doña Pepa',
+  RESTAURANT_DIRECCION: process.env.RESTAURANT_DIRECCION || 'Av. República del Salvador, Quito',
+  RESTAURANT_EMAIL: process.env.RESTAURANT_EMAIL || 'contacto@ladonapepa.ec',
+  RESTAURANT_PHONE: process.env.RESTAURANT_PHONE || '02-234-5678',
 
   // App base URL (used for QR callback URLs)
   APP_BASE_URL: process.env.APP_BASE_URL || 'http://localhost:3000',

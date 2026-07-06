@@ -34,30 +34,43 @@ async function ensurePublicLegacyColumns(prisma = getPlatformPrisma()) {
     ALTER TABLE IF EXISTS "cobros" ADD COLUMN IF NOT EXISTS "procesador" TEXT;
     ALTER TABLE IF EXISTS "cobros" ADD COLUMN IF NOT EXISTS "detalle" TEXT;
     ALTER TABLE IF EXISTS "webhook_logs" ADD COLUMN IF NOT EXISTS "error" TEXT;
+    ALTER TABLE IF EXISTS "documentos" ADD COLUMN IF NOT EXISTS "adicional1" TEXT;
+    ALTER TABLE IF EXISTS "documentos" ADD COLUMN IF NOT EXISTS "adicional2" TEXT;
   `);
 }
 
 async function ensureDemoRestaurant() {
   const prisma = getPlatformPrisma();
-  const existing = await prisma.platformRestaurant.findUnique({
-    where: { tenantSchema: DEMO_TENANT_SCHEMA },
-  });
-  if (existing) return existing;
+  const demoData = {
+    tenantSchema: DEMO_TENANT_SCHEMA,
+    slug: 'la-dona-pepa',
+    name: 'La Doña Pepa',
+    legalName: env.RESTAURANT_RAZON_SOCIAL,
+    ruc: env.RESTAURANT_RUC,
+    address: env.RESTAURANT_DIRECCION,
+    city: 'Quito',
+    phone: env.RESTAURANT_PHONE || '02-234-5678',
+    email: env.RESTAURANT_EMAIL || 'contacto@ladonapepa.ec',
+    serviceChargeEnabled: true,
+    serviceChargeRate: 0.10,
+    setupCompleted: true,
+  };
 
-  return prisma.platformRestaurant.create({
-    data: {
-      tenantSchema: DEMO_TENANT_SCHEMA,
-      slug: 'demo-restaurant',
-      name: 'Demo Restaurant',
-      legalName: env.RESTAURANT_RAZON_SOCIAL,
-      ruc: env.RESTAURANT_RUC,
-      address: env.RESTAURANT_DIRECCION,
-      city: 'Guayaquil',
-      phone: '+593 2 222-3344',
-      email: 'ventas@demo-restaurante.ec',
-      serviceChargeEnabled: true,
-      serviceChargeRate: 0.10,
-      setupCompleted: true,
+  return prisma.platformRestaurant.upsert({
+    where: { tenantSchema: DEMO_TENANT_SCHEMA },
+    create: demoData,
+    update: {
+      slug: demoData.slug,
+      name: demoData.name,
+      legalName: demoData.legalName,
+      ruc: demoData.ruc,
+      address: demoData.address,
+      city: demoData.city,
+      phone: demoData.phone,
+      email: demoData.email,
+      serviceChargeEnabled: demoData.serviceChargeEnabled,
+      serviceChargeRate: demoData.serviceChargeRate,
+      setupCompleted: demoData.setupCompleted,
     },
   });
 }
@@ -394,6 +407,12 @@ async function ensureTenantSchema(schemaName) {
   const schema = quoteIdent(schemaName);
   await prisma.$executeRawUnsafe(`CREATE SCHEMA IF NOT EXISTS ${schema};`);
   await executeSqlBatch(prisma, tenantTablesSql(schema));
+  // Additive columns for pre-existing tenant schemas (CREATE IF NOT EXISTS
+  // above does not alter tables that already exist).
+  await executeSqlBatch(prisma, `
+    ALTER TABLE IF EXISTS ${schema}."documentos" ADD COLUMN IF NOT EXISTS "adicional1" TEXT;
+    ALTER TABLE IF EXISTS ${schema}."documentos" ADD COLUMN IF NOT EXISTS "adicional2" TEXT;
+  `);
 }
 
 async function copyPublicDataToTenant(schemaName) {
@@ -406,7 +425,7 @@ async function copyPublicDataToTenant(schemaName) {
     ['personas', '"id", "cedula", "ruc", "razonSocial", "tipo", "email", "telefonos", "direccion", "esExtranjero", "activo", "createdAt", "updatedAt"'],
     ['ordenes', '"id", "mesaId", "estado", "descripcion", "mesero", "comensales", "createdAt", "updatedAt", "cerradaAt"'],
     ['orden_detalles', '"id", "ordenId", "productoId", "nombre", "cantidad", "precio", "porcentajeIva", "porcentajeDescuento", "createdAt", "updatedAt"'],
-    ['documentos', '"id", "ordenId", "personaId", "pos", "fechaEmision", "tipoDocumento", "tipoRegistro", "estado", "electronico", "descripcion", "subtotal0", "subtotal15", "iva", "servicio", "total", "autorizacionSRI", "urlRide", "urlXml", "claveAcceso", "clienteCedula", "clienteRuc", "clienteRazonSocial", "clienteTipo", "clienteEmail", "clienteTelefonos", "clienteDireccion", "clienteExtranjero", "createdAt", "updatedAt"'],
+    ['documentos', '"id", "ordenId", "personaId", "pos", "fechaEmision", "tipoDocumento", "tipoRegistro", "estado", "electronico", "descripcion", "adicional1", "adicional2", "subtotal0", "subtotal15", "iva", "servicio", "total", "autorizacionSRI", "urlRide", "urlXml", "claveAcceso", "clienteCedula", "clienteRuc", "clienteRazonSocial", "clienteTipo", "clienteEmail", "clienteTelefonos", "clienteDireccion", "clienteExtranjero", "createdAt", "updatedAt"'],
     ['documento_detalles', '"id", "documentoId", "productoId", "cantidad", "precio", "porcentajeIva", "porcentajeDescuento", "baseCero", "baseGravable", "baseNoGravable", "createdAt"'],
     ['cobros', '"id", "documentoId", "formaCobro", "monto", "propina", "procesador", "detalle", "referencia", "createdAt"'],
     ['webhook_logs', '"id", "fuente", "evento", "payload", "procesado", "error", "createdAt"'],
@@ -600,6 +619,8 @@ function tenantTablesSql(schema) {
       "estado" TEXT NOT NULL DEFAULT 'P',
       "electronico" BOOLEAN NOT NULL DEFAULT true,
       "descripcion" TEXT,
+      "adicional1" TEXT,
+      "adicional2" TEXT,
       "subtotal0" DECIMAL(10,2) NOT NULL DEFAULT 0,
       "subtotal15" DECIMAL(10,2) NOT NULL DEFAULT 0,
       "iva" DECIMAL(10,2) NOT NULL DEFAULT 0,
