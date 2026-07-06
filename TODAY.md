@@ -44,6 +44,12 @@ Formato de cada entrada:
 
 ## 🗂️ Registro de cambios (lo más nuevo primero)
 
+### 2026-07-06 — Re-tema visual: paleta Contífico/Siigo (azul) en todo el POS
+
+- **Qué:** `public/pos-v2/pos.css` (tokens `:root` + sombras + rgba hardcodeados + topbar), `public/logo.svg`, `public/favicon.svg`, `public/favicon.png`, `public/apple-touch-icon.png` (regenerados en azul), `theme-color` en ambos HTML, `ui.jsx` (QR falso en navy), `dist/` recompilado.
+- **Por qué:** Manuel pidió que el POS se vea más suave y lo más parecido posible al POS de Contífico. La paleta se extrajo del CSS de producción de siigo.com/ec (la marca actual de Contífico): azul #009DFF/#007ECC/#EBF7FF, navy #222B45, verde #619B2E, rojo #D42143, ámbar #FFA532, fondos fríos #F3F7F9.
+- **Qué hace:** todo el POS pasa de la paleta naranja/crema a la azul/fría de Contífico vía tokens (badges, botones, precios, chips, pantalla de arranque, logo y favicons incluidos); sombras más suaves con tinte navy. La estructura y el layout no cambian. Verificado en preview local: mapa, pantalla de orden y arranque. Suite 25/25.
+
 ### 2026-07-06 — Chip DEMO ya no queda debajo del badge de estado (Mesa 12)
 
 - **Qué:** `public/pos-v2/pos.css` (`.tcard .tnm` reserva el carril del badge), `dist/` recompilado.

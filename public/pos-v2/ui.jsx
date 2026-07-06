@@ -126,7 +126,7 @@ function FakeQR({ seed = "mesita", size = 160 }) {
   return (
     <svg viewBox={`0 0 ${size} ${size}`} shapeRendering="crispEdges">
       {cells.map((row, y) => row.map((on, x) => on ? (
-        <rect key={x + "-" + y} x={x * c} y={y * c} width={c} height={c} rx={c * 0.18} fill="#1F2933" />
+        <rect key={x + "-" + y} x={x * c} y={y * c} width={c} height={c} rx={c * 0.18} fill="#222B45" />
       ) : null))}
     </svg>
   );
