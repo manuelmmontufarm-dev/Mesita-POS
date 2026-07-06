@@ -130,7 +130,7 @@ function Floor({ onOpen }) {
           </div>
           <div className="tables">
             {groups[z].sort((a, b) => a.nombre.localeCompare(b.nombre, "es", { numeric: true })).map((m) => (
-              <TableCard key={m.id} mesa={m} onOpen={onOpen} />
+              <TableCard key={m.id} mesa={m} onOpen={onOpen} onDelete={store.deleteTable} />
             ))}
           </div>
         </div>
@@ -139,45 +139,101 @@ function Floor({ onOpen }) {
   );
 }
 
-function TableCard({ mesa, onOpen }) {
+function TableCard({ mesa, onOpen, onDelete }) {
   const estado = mesa.paidFlash ? "C" : mesa.estado;
   const total = mesa.orden ? computeTotals(mesa.orden, Store.state.serviceEnabled).total : 0;
   const count = ordenCount(mesa.orden);
   const cov = mesa.coverage;
+  const [confirmDelete, setConfirmDelete] = React.useState(false);
+  const [deleting, setDeleting] = React.useState(false);
+  const canDelete = !mesa.paidFlash && mesa.estado === "L" && !mesa.orden;
+
+  async function handleDelete(event) {
+    event?.preventDefault?.();
+    if (!canDelete || deleting) return;
+    setDeleting(true);
+    try {
+      await onDelete(mesa.id);
+      toast(`${mesa.nombre} eliminada`, "ok", "✓");
+      setConfirmDelete(false);
+    } catch (error) {
+      toast(error?.message || "No se pudo eliminar la mesa", "err", "!");
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   return (
-    <button
-      className={"tcard is-" + estado + (mesa.paidFlash ? " is-paid turning" : "")}
-      onClick={() => { if (!mesa.paidFlash) onOpen(mesa.id); }}
-    >
-      <span className={"badge " + estado}><span className="d" />{ESTADO_MESA[estado]}</span>
-      <div className="tnm">
-        {mesa.nombre}
-        {mesa.demo && <span style={{ marginLeft: 7, fontSize: ".62rem", fontWeight: 700, background: "var(--brand)", color: "#fff", padding: "2px 7px", borderRadius: 6, verticalAlign: "middle" }}>DEMO</span>}
-      </div>
-      <div className="tmeta">
-        <Icon name="users" size={14} />
-        {mesa.orden && mesa.orden.comensales > 0 ? `${mesa.orden.comensales} / ${mesa.cap} personas` : `Capacidad ${mesa.cap}`}
-      </div>
+    <div className="tcard-wrap">
+      <button
+        type="button"
+        className={"tcard is-" + estado + (mesa.paidFlash ? " is-paid turning" : "")}
+        onClick={() => { if (!mesa.paidFlash) onOpen(mesa.id); }}
+      >
+        <span className={"badge " + estado}><span className="d" />{ESTADO_MESA[estado]}</span>
+        <div className="tnm">
+          {mesa.nombre}
+          {mesa.demo && <span style={{ marginLeft: 7, fontSize: ".62rem", fontWeight: 700, background: "var(--brand)", color: "#fff", padding: "2px 7px", borderRadius: 6, verticalAlign: "middle" }}>DEMO</span>}
+        </div>
+        <div className="tmeta">
+          <Icon name="users" size={14} />
+          {mesa.orden && mesa.orden.comensales > 0 ? `${mesa.orden.comensales} / ${mesa.cap} personas` : `Capacidad ${mesa.cap}`}
+        </div>
 
-      <div className="tfoot">
-        {mesa.paidFlash ? (
-          <div className="ttotal" style={{ color: "var(--ok)", display: "flex", alignItems: "center", gap: 6 }}>
-            <Icon name="check" size={18} /> Pagada
-          </div>
-        ) : mesa.orden ? (
-          <>
-            <div className="ttotal tnum">{money(total)}</div>
-            <div className="thint">{count} {count === 1 ? "ítem" : "ítems"} en precuenta</div>
-            {cov && (
-              <div className="tprog"><i style={{ width: Math.min(100, cov.pct) + "%" }} /></div>
-            )}
-          </>
-        ) : (
-          <div className="thint">Toca para abrir orden</div>
-        )}
-      </div>
-    </button>
+        <div className="tfoot">
+          {mesa.paidFlash ? (
+            <div className="ttotal" style={{ color: "var(--ok)", display: "flex", alignItems: "center", gap: 6 }}>
+              <Icon name="check" size={18} /> Pagada
+            </div>
+          ) : mesa.orden ? (
+            <>
+              <div className="ttotal tnum">{money(total)}</div>
+              <div className="thint">{count} {count === 1 ? "ítem" : "ítems"} en precuenta</div>
+              {cov && (
+                <div className="tprog"><i style={{ width: Math.min(100, cov.pct) + "%" }} /></div>
+              )}
+            </>
+          ) : (
+            <div className="thint">Toca para abrir orden</div>
+          )}
+        </div>
+      </button>
+
+      {canDelete ? (
+        <button
+          type="button"
+          className="tcard-delete-btn"
+          data-testid="delete-table-btn"
+          title="Eliminar mesa"
+          aria-label={`Eliminar ${mesa.nombre}`}
+          disabled={deleting}
+          onClick={(event) => {
+            event.stopPropagation();
+            setConfirmDelete(true);
+          }}
+        >
+          <Icon name="trash" size={15} />
+        </button>
+      ) : null}
+
+      {confirmDelete ? (
+        <Modal
+          title="Eliminar mesa"
+          sub={`¿Quitar ${mesa.nombre} del mapa? Solo mesas libres sin orden activa.`}
+          onClose={() => !deleting && setConfirmDelete(false)}
+          footer={(
+            <>
+              <button type="button" className="btn btn-outline" disabled={deleting} onClick={() => setConfirmDelete(false)}>Cancelar</button>
+              <button type="button" className="btn btn-danger" disabled={deleting} onClick={handleDelete}>
+                {deleting ? "Eliminando…" : "Eliminar mesa"}
+              </button>
+            </>
+          )}
+        >
+          <p className="modal-copy">La mesa se desactiva en el POS y deja de aparecer en el mapa.</p>
+        </Modal>
+      ) : null}
+    </div>
   );
 }
 

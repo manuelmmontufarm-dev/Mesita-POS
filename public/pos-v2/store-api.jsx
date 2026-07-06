@@ -395,6 +395,13 @@ function createStore() {
       return created;
     },
 
+    async deleteTable(id) {
+      await api(`/mesa/${encodeURIComponent(id)}/`, { method: "DELETE" });
+      state.mesas = state.mesas.filter((m) => m.id !== id);
+      log("DELETE", `/mesa/${id}/`, "ok");
+      emit();
+    },
+
     async openMesa(id) {
       const m = mesaById(id);
       if (!m) return null;
