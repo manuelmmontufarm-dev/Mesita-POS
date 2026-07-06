@@ -44,6 +44,12 @@ Formato de cada entrada:
 
 ## 🗂️ Registro de cambios (lo más nuevo primero)
 
+### 2026-07-06 — Chip DEMO ya no queda debajo del badge de estado (Mesa 12)
+
+- **Qué:** `public/pos-v2/pos.css` (`.tcard .tnm` reserva el carril del badge), `dist/` recompilado.
+- **Por qué:** Manuel reportó que en la tarjeta de Mesa 12 el chip "DEMO" quedaba tapado por el badge "Por cobrar" (badge absoluto arriba-derecha; el título corría por debajo).
+- **Qué hace:** el título de la tarjeta tiene `padding-right: 96px`, así el nombre + chip nunca invaden la zona del badge (verificado por medición de cajas: 7px de aire en el peor caso "Por cobrar").
+
 ### 2026-07-04 — Fix del mapa de mesas: ya no se re-acomoda al entrar + mesas inactivas fuera
 
 - **Qué:** `public/pos-v2/store-api.jsx` (`refreshMesaSession` + filtro en `loadBootstrap`), `src/api/v1/bootstrap.js` (`activa: true`), `public/pos-v2/data.jsx` (`ZONE_ORDER` + "General"), `tests/bootstrap.test.js` (NUEVO), `dist/` recompilado.

@@ -166,7 +166,12 @@ input, select { font-family: inherit; }
 }
 .tcard:hover { transform: translateY(-3px); box-shadow: var(--sh-md); border-color: #d9cdbe; }
 .tcard .badge { position: absolute; top: 14px; right: 14px; }
-.tcard .tnm { font-size: 1.35rem; font-weight: 780; letter-spacing: -0.02em; }
+.tcard .tnm {
+  font-size: 1.35rem; font-weight: 780; letter-spacing: -0.02em;
+  /* The estado badge floats top-right (absolute) — reserve its lane so the
+     title row (name + DEMO chip on Mesa 12) can never run underneath it. */
+  padding-right: 96px;
+}
 .tcard .tmeta { font-size: .82rem; color: var(--ink-mut); display: flex; align-items: center; gap: 6px; }
 .tcard .tfoot { margin-top: auto; }
 .tcard .ttotal { font-size: 1.18rem; font-weight: 780; }
