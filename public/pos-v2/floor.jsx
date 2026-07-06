@@ -47,19 +47,24 @@ function Floor({ onOpen }) {
   return (
     <div className="page">
       <div className="page-head">
-        <div>
-          <h1>Mapa de mesas</h1>
-          <p>{activas} {activas === 1 ? "mesa activa" : "mesas activas"} · {libres} {libres === 1 ? "libre" : "libres"} · toca una mesa para tomar o cobrar su orden.</p>
-        </div>
-        <div className="floor-actions">
-          <div className="legend">
-            {["L", "O", "P", "C"].map((c) => (
-              <span key={c} className={"badge " + c}><span className="d" />{ESTADO_MESA[c]}</span>
-            ))}
+        <div className="page-head-top">
+          <div>
+            <h1>Mapa de mesas</h1>
+            <p>{activas} {activas === 1 ? "mesa activa" : "mesas activas"} · {libres} {libres === 1 ? "libre" : "libres"} · toca una mesa para tomar o cobrar su orden.</p>
           </div>
-          <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
+          <button
+            type="button"
+            className="btn btn-primary add-table-btn"
+            data-testid="add-table-btn"
+            onClick={() => setShowCreate(true)}
+          >
             <Icon name="plus" size={16} /> Añadir mesa
           </button>
+        </div>
+        <div className="legend">
+          {["L", "O", "P", "C"].map((c) => (
+            <span key={c} className={"badge " + c}><span className="d" />{ESTADO_MESA[c]}</span>
+          ))}
         </div>
       </div>
 

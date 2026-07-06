@@ -75,3 +75,17 @@ for (const [pkg, file] of [
 }
 
 console.log('POS v2 build complete.');
+
+// Bust browser/CDN caches for static bundles after each compile.
+const BUILD_ID = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '');
+for (const htmlName of ['index.html', 'pos-v2.html']) {
+  const htmlPath = path.join(__dirname, '..', 'public', htmlName);
+  if (!fs.existsSync(htmlPath)) continue;
+  const html = fs.readFileSync(htmlPath, 'utf8');
+  const stamped = html.replace(
+    /\/(pos-v2\/(?:dist|vendor)\/[^"?]+\.js|pos-v2\/pos\.css)(\?v=[^"]+)?/g,
+    `/$1?v=${BUILD_ID}`,
+  );
+  fs.writeFileSync(htmlPath, stamped);
+  console.log(`  cache-bust ${htmlName} → v=${BUILD_ID}`);
+}

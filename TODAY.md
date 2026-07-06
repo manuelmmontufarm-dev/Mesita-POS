@@ -44,6 +44,12 @@ Formato de cada entrada:
 
 ## 🗂️ Registro de cambios (lo más nuevo primero)
 
+### 2026-07-06 — POS: botón Añadir mesa visible + cache-bust en deploy
+
+- **Qué:** `public/pos-v2/floor.jsx`, `pos.css`, `scripts/build-pos-v2.js`, `public/index.html`, `public/pos-v2.html`, bundles `dist/`.
+- **Por qué:** producción ya tenía el JS nuevo pero los navegadores seguían sirviendo `floor.js` cacheado (max-age 1h); además el botón quedaba escondido junto a la leyenda en pantallas anchas.
+- **Qué hace:** mueve **Añadir mesa** arriba a la derecha del título (imposible de perder); `npm run build:pos-v2` ahora estampa `?v=` en todos los scripts/CSS de `index.html` y `pos-v2.html` para forzar recarga tras cada build.
+
 ### 2026-07-06 — Añadir mesas desde el mapa del POS
 
 - **Qué:** `public/pos-v2/floor.jsx`, `store-api.jsx`, `pos.css` y sus bundles de `dist/`; también se limpió y documentó `.env.example`.
