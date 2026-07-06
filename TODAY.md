@@ -44,6 +44,12 @@ Formato de cada entrada:
 
 ## 🗂️ Registro de cambios (lo más nuevo primero)
 
+### 2026-07-06 — Quality sweep: npm audit a CERO (dependencias muertas fuera)
+
+- **Qué:** `package.json`/`package-lock.json` — se quitaron `uuid` (cero imports en src/tests/scripts) y `crypto` (paquete placeholder de npm deprecado; todos los `require('crypto')` resuelven al builtin de Node, que siempre gana). `npm audit fix` actualizó `form-data` (high) y `js-yaml` (moderate) dentro de sus rangos semver.
+- **Por qué:** `npm audit` marcaba 3 vulnerabilidades (1 high). Dos dependencias directas eran peso muerto — una sin un solo uso, otra inerte. Menos superficie de supply-chain, cero cambios de comportamiento.
+- **Qué hace:** `npm audit` = **0 vulnerabilidades**; suite **25/25 verde** (el gate DB-antes-de-auth que trababa los tests ya fue arreglado en commits previos). Sin tocar código de producción.
+
 ### 2026-07-04 — Fix del mapa de mesas: ya no se re-acomoda al entrar + mesas inactivas fuera
 
 - **Qué:** `public/pos-v2/store-api.jsx` (`refreshMesaSession` + filtro en `loadBootstrap`), `src/api/v1/bootstrap.js` (`activa: true`), `public/pos-v2/data.jsx` (`ZONE_ORDER` + "General"), `tests/bootstrap.test.js` (NUEVO), `dist/` recompilado.
