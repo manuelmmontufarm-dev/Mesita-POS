@@ -119,7 +119,6 @@ export default function App() {
   async function openNew(table: DiningTable, diners: number) {
     const bill = await posApi.openBill({ tableId: table.id, diners });
     setScreen({ name: 'ORDER', bill, table });
-    await reload();
   }
 
   async function returnToFloor() {
