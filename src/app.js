@@ -17,6 +17,8 @@ const { requireApiKey } = require('./middlewares/auth');
 const { notFoundHandler, errorHandler } = require('./middlewares/errorHandler');
 const { connectDatabase } = require('./config/database');
 const apiV1Router = require('./api/v1/index');
+const apiV2Router = require('./api/v2/index');
+const posPilotRouter = require('./api/posPilot/index');
 const { ensurePlatformReady } = require('./services/platformService');
 
 const app = express();
@@ -31,6 +33,10 @@ app.use(helmet({
 }));
 app.use(cors());
 app.use(morgan('combined', {
+  // The launch ticket is one-use and expires quickly, but it is still a
+  // credential. Do not persist the initial /pos-pilot/?ticket=... URL in
+  // access logs; subsequent asset/API requests continue to be logged.
+  skip: (req) => req.path.startsWith('/pos-pilot') && typeof req.query?.ticket === 'string',
   stream: { write: (msg) => logger.info(msg.trim()) },
 }));
 
@@ -48,6 +54,10 @@ app.use(limiter);
 app.use('/sistema/api/v1/mesitaqr/webhook/', express.raw({ type: 'application/json' }));
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
+
+// Gateway-only BFF: Mesita-app owns tenant state and Contifico credentials,
+// so this route must never pass through the local Prisma bootstrap.
+app.use('/api/pos-pilot', posPilotRouter);
 
 // ---------------------------------------------------------------------------
 // Database init (lazy for Vercel serverless; eager via start() on Railway/Docker)
@@ -81,7 +91,33 @@ async function initDatabase({ fullBootstrap = false } = {}) {
 // Static files (demo dashboard) — served BEFORE the DB init gate so the app
 // shell, JS and CSS paint instantly and never block on a cold-start Postgres
 // bootstrap. express.static serves public/index.html at "/" directly (no redirect).
+app.use('/pos-pilot', (req, res, next) => {
+  if (!env.POS_PILOT_ENABLED) return res.status(404).send('Not Found');
+  res.set('Cache-Control', req.path.startsWith('/assets/')
+    ? 'public, max-age=31536000, immutable'
+    : 'no-store');
+  res.set('Referrer-Policy', 'no-referrer');
+  res.set('Content-Security-Policy', [
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self'",
+    "img-src 'self' data:",
+    "connect-src 'self'",
+    "object-src 'none'",
+    "base-uri 'none'",
+    "frame-ancestors 'none'",
+    "form-action 'self'",
+  ].join('; '));
+  return next();
+});
 app.use(express.static(path.join(__dirname, '..', 'public')));
+
+// SPA navigation fallback. Built pilot assets remain ordinary static files.
+app.get('/pos-pilot/*', (req, res, next) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'pos-pilot', 'index.html'), (err) => {
+    if (err) next();
+  });
+});
 
 // Database init gate — only API routes need the DB. Static assets, the
 // dashboard shell and health checks skip it, so first paint is never blocked
@@ -154,6 +190,10 @@ app.get('/sistema/api/v1/health/', (req, res) => {
 });
 
 app.use('/sistema/api/v1', requireApiKey, apiV1Router);
+
+// Strict Contifico v2 simulator used for frozen contract verification. Its
+// Authorization header deliberately follows the raw-key Contifico contract.
+app.use('/sistema/api/v2', apiV2Router);
 
 // Note: "/" is served directly as public/index.html by express.static above —
 // no redirect, so users never see a "redirecting…" hop on load.

@@ -1,0 +1,18 @@
+{
+  "index.html": {
+    "file": "assets/index-Bw45EDwu.js",
+    "name": "index",
+    "src": "index.html",
+    "isEntry": true,
+    "css": [
+      "assets/index-LYcRBZrn.css"
+    ],
+    "assets": [
+      "assets/logo-BmA7fNOi.svg"
+    ]
+  },
+  "logo.svg": {
+    "file": "assets/logo-BmA7fNOi.svg",
+    "src": "logo.svg"
+  }
+}

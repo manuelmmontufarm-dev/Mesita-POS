@@ -36,6 +36,7 @@ async function ensurePublicLegacyColumns(prisma = getPlatformPrisma()) {
     ALTER TABLE IF EXISTS "webhook_logs" ADD COLUMN IF NOT EXISTS "error" TEXT;
     ALTER TABLE IF EXISTS "documentos" ADD COLUMN IF NOT EXISTS "adicional1" TEXT;
     ALTER TABLE IF EXISTS "documentos" ADD COLUMN IF NOT EXISTS "adicional2" TEXT;
+    ALTER TABLE IF EXISTS "documentos" ADD COLUMN IF NOT EXISTS "referencia" TEXT;
   `);
 }
 
@@ -421,6 +422,7 @@ async function ensureTenantSchema(schemaName) {
   await executeSqlBatch(prisma, `
     ALTER TABLE IF EXISTS ${schema}."documentos" ADD COLUMN IF NOT EXISTS "adicional1" TEXT;
     ALTER TABLE IF EXISTS ${schema}."documentos" ADD COLUMN IF NOT EXISTS "adicional2" TEXT;
+    ALTER TABLE IF EXISTS ${schema}."documentos" ADD COLUMN IF NOT EXISTS "referencia" TEXT;
   `);
 }
 
@@ -434,7 +436,7 @@ async function copyPublicDataToTenant(schemaName) {
     ['personas', '"id", "cedula", "ruc", "razonSocial", "tipo", "email", "telefonos", "direccion", "esExtranjero", "activo", "createdAt", "updatedAt"'],
     ['ordenes', '"id", "mesaId", "estado", "descripcion", "mesero", "comensales", "createdAt", "updatedAt", "cerradaAt"'],
     ['orden_detalles', '"id", "ordenId", "productoId", "nombre", "cantidad", "precio", "porcentajeIva", "porcentajeDescuento", "createdAt", "updatedAt"'],
-    ['documentos', '"id", "ordenId", "personaId", "pos", "fechaEmision", "tipoDocumento", "tipoRegistro", "estado", "electronico", "descripcion", "adicional1", "adicional2", "subtotal0", "subtotal15", "iva", "servicio", "total", "autorizacionSRI", "urlRide", "urlXml", "claveAcceso", "clienteCedula", "clienteRuc", "clienteRazonSocial", "clienteTipo", "clienteEmail", "clienteTelefonos", "clienteDireccion", "clienteExtranjero", "createdAt", "updatedAt"'],
+    ['documentos', '"id", "ordenId", "personaId", "pos", "fechaEmision", "tipoDocumento", "tipoRegistro", "estado", "electronico", "descripcion", "referencia", "adicional1", "adicional2", "subtotal0", "subtotal15", "iva", "servicio", "total", "autorizacionSRI", "urlRide", "urlXml", "claveAcceso", "clienteCedula", "clienteRuc", "clienteRazonSocial", "clienteTipo", "clienteEmail", "clienteTelefonos", "clienteDireccion", "clienteExtranjero", "createdAt", "updatedAt"'],
     ['documento_detalles', '"id", "documentoId", "productoId", "cantidad", "precio", "porcentajeIva", "porcentajeDescuento", "baseCero", "baseGravable", "baseNoGravable", "createdAt"'],
     ['cobros', '"id", "documentoId", "formaCobro", "monto", "propina", "procesador", "detalle", "referencia", "createdAt"'],
     ['webhook_logs', '"id", "fuente", "evento", "payload", "procesado", "error", "createdAt"'],
@@ -628,6 +630,7 @@ function tenantTablesSql(schema) {
       "estado" TEXT NOT NULL DEFAULT 'P',
       "electronico" BOOLEAN NOT NULL DEFAULT true,
       "descripcion" TEXT,
+      "referencia" TEXT,
       "adicional1" TEXT,
       "adicional2" TEXT,
       "subtotal0" DECIMAL(10,2) NOT NULL DEFAULT 0,

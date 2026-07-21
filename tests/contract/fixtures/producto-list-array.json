@@ -1,0 +1,26 @@
+[
+  {
+    "id": "prod-ceviche",
+    "codigo": "CEV-001",
+    "nombre": "Ceviche Mixto",
+    "descripcion": "Camarones, pulpo y pescado",
+    "pvp1": 8.5,
+    "categoria_id": "cat-entradas",
+    "categoria_nombre": "Entradas",
+    "porcentaje_iva": 15,
+    "estado": "A",
+    "fecha_modificacion": "2026-07-20T15:00:00.000Z"
+  },
+  {
+    "id": "prod-jugo",
+    "codigo": "BEB-002",
+    "nombre": "Jugo Natural",
+    "descripcion": "Naranja o mora",
+    "pvp1": 2.5,
+    "categoria_id": "cat-bebidas",
+    "categoria_nombre": "Bebidas",
+    "porcentaje_iva": 15,
+    "estado": "A",
+    "fecha_modificacion": "2026-07-20T15:01:00.000Z"
+  }
+]

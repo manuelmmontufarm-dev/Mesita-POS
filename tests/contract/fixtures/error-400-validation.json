@@ -1,0 +1,7 @@
+{
+  "_comment": "Body shape UNVERIFIED against real Contífico — clients must not depend on it. Simulator emits this shape.",
+  "mensaje": "Error de validación",
+  "errores": [
+    { "campo": "monto", "detalle": "Debe ser mayor a 0 y tener máximo 8 enteros y 2 decimales." }
+  ]
+}

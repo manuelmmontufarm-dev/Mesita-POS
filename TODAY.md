@@ -36,13 +36,19 @@ Formato de cada entrada:
 ## 🟢 En qué estamos ahora
 
 - **Estado general:** POS + guest app en Vercel (`mesita-pos.vercel.app`, `mesitademo-two.vercel.app`).
-- **Última área trabajada:** carga inicial — JSX precompilado (sin Babel en el navegador) + pantalla de arranque con marca (rama `polish-loading`, pendiente de merge por Manuel).
-- **Pendiente / próximos pasos:** Manuel revisa el preview de `polish-loading` y decide el merge; después de editar cualquier `.jsx` correr `npm run build:pos-v2` y commitear `dist/`.
+- **Última área trabajada:** piloto write-through — BFF seguro hacia Mesita-app y simulador contractual Contífico v2 en la rama aislada `codex/mesita-pos-write-through-pilot`.
+- **Pendiente / próximos pasos:** conectar el piloto a las variables/feature flags de sandbox, ejecutar las migraciones y certificar las operaciones contra Contífico antes de habilitar restaurantes.
 - **Cosas a tener cuidado:** mesas 1–4 arrancan vacías en guest — ítems vienen del POS. El cierre remoto se detecta en el poll (`refreshMesaSession`).
 
 ---
 
 ## 🗂️ Registro de cambios (lo más nuevo primero)
+
+### 2026-07-21 — Piloto POS write-through completo en rama aislada
+
+- **Qué:** nuevo cliente desktop en `client/pos-pilot/` y bundle versionado en `public/pos-pilot/`; BFF en `src/api/posPilot/`, cliente de gateway, configuración/serving/variables/Vercel, fachada `src/api/v2/`, campos y migración de referencia Contífico, fixtures contractuales y runner Jest aislado.
+- **Por qué:** restaurantes necesitan una consola clara de piso/órdenes/cobro sin exponer credenciales Contífico ni depender de estados fiscales simulados; además las suites legacy compartían singletons/mocks incompatibles al correr juntas.
+- **Qué hace:** agrega mapa por zonas, orden con autosave/guardado inmediato, pagos bloqueados cuando la PRE no está sincronizada, historial e impresión factual; intercambia tickets SSO de un uso por cookie HttpOnly, retransmite únicamente rutas aprobadas a Mesita-app, falla cerrado por feature flag/configuración y simula catálogo/PRE/PUT/cobros/personas con autenticación raw-key. La recuperación de pagos conserva el intent original y solo muestra acciones autorizadas por el gateway, incluso tras un lease vencido. Verificado con 7 suites/96 tests de servidor, 14 tests del cliente, TypeScript, Prisma, build de producción y 10/10 flujos desktop E2E.
 
 ### 2026-07-06 — POS: botón Añadir mesa visible + cache-bust en deploy
 
