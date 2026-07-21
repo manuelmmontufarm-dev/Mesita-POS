@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calculateDraftTotal, conflictAllowsAction, conflictReasonLabel, draftFingerprint, gatewayDraftItems, isRemoteMoneyConflict, isSriAuthorized, parseMoneyInput, paymentBlockReason, paymentEligibilityReasonLabel, paymentMethodLabel, reconcileDraftLineIds, tableState } from './domain';
+import { calculateDraftTotal, conflictAllowsAction, conflictReasonLabel, draftFingerprint, gatewayDraftItems, isRemoteMoneyConflict, isSriAuthorized, parseMoneyInput, paymentBlockReason, paymentEligibilityReasonLabel, paymentMethodLabel, reconcileDraftLineIds, splitDraftItemUnit, tableState } from './domain';
 import type { Bill, DiningTable, OrderDraft } from './types';
 
 const bill = (overrides: Partial<Bill> = {}): Bill => ({
@@ -87,6 +87,27 @@ describe('truthful state guards', () => {
 });
 
 describe('draft fingerprint', () => {
+  it('splits one unit into a separate PRE line with an independent kitchen note', () => {
+    const items = [{
+      id: 'server-line-1', clientLineId: 'local-line-1', productId: 'p1', name: 'Ceviche',
+      quantity: 2, unitPriceCents: 850, lineTotalCents: 1700, notes: 'Sin cebolla',
+    }];
+
+    const split = splitDraftItemUnit(items, 'local-line-1', 'local-line-2');
+
+    expect(split).toEqual([
+      { ...items[0], quantity: 1 },
+      {
+        ...items[0], id: undefined, clientLineId: 'local-line-2', quantity: 1,
+        lineTotalCents: undefined, notes: '',
+      },
+    ]);
+    expect(gatewayDraftItems(split)).toEqual([
+      { lineId: 'server-line-1', catalogItemId: 'p1', quantity: 1, notes: 'Sin cebolla' },
+      { lineId: undefined, catalogItemId: 'p1', quantity: 1, notes: undefined },
+    ]);
+  });
+
   it('captures server-relevant fields and normalizes surrounding notes', () => {
     const draft: OrderDraft = {
       diners: 2,

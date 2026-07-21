@@ -70,6 +70,20 @@ function bootstrap(state?: ApiState) {
       },
     };
   }
+  if (state?.existing) {
+    response.tables[0] = {
+      ...response.tables[0],
+      activeBill: {
+        id: state.existing.id,
+        status: state.existing.status,
+        syncState: state.existing.syncState,
+        totalCents: state.existing.totals.totalCents,
+        balanceCents: state.existing.totals.balanceCents,
+        diners: state.existing.diners,
+        remoteNumber: state.existing.remoteNumber,
+      },
+    };
+  }
   return response;
 }
 
@@ -78,6 +92,7 @@ type ApiState = ReturnType<typeof createState>;
 function createState() {
   return {
     bill: emptyBill(),
+    existing: existingBill(),
     billOpened: false,
     draftOffline: false,
     exchangedTicket: null as string | null,
@@ -129,7 +144,7 @@ async function installApi(page: Page): Promise<ApiState> {
       state.billOpened = true;
       return fulfill(state.bill);
     }
-    if (method === 'GET' && path === '/bills/bill-existing') return fulfill(existingBill());
+    if (method === 'GET' && path === '/bills/bill-existing') return fulfill(state.existing);
     if (method === 'GET' && path === '/bills/bill-conflict') return fulfill(conflictBill());
     if (method === 'GET' && path === '/bills/bill-new') return fulfill(state.bill);
     if (method === 'PUT' && path === '/bills/bill-new/draft') {
@@ -148,6 +163,22 @@ async function installApi(page: Page): Promise<ApiState> {
       };
       return fulfill(state.bill);
     }
+    if (method === 'PUT' && path === '/bills/bill-existing/draft') {
+      state.draftBodies.push(body);
+      const items: BillItem[] = body.items.map((wire: Record<string, any>) => {
+        const product = catalog.find((candidate) => candidate.id === wire.catalogItemId)!;
+        const lineId = wire.lineId || `server-line-${state.nextLine++}`;
+        return { id: lineId, clientLineId: lineId, productId: product.id, externalProductId: product.externalId, name: product.name, quantity: wire.quantity, unitPriceCents: product.priceCents, notes: wire.notes || '' };
+      });
+      const totalCents = items.reduce((sum, line) => sum + line.quantity * line.unitPriceCents, 0);
+      state.existing = {
+        ...state.existing, revision: state.existing.revision + 1, diners: body.diners,
+        notes: body.notes || '', items, syncState: 'PENDING',
+        totals: { ...state.existing.totals, subtotalCents: totalCents, totalCents, balanceCents: totalCents },
+        paymentEligibility: { eligible: false, reason: 'Sincronización pendiente.' },
+      };
+      return fulfill(state.existing);
+    }
     if (method === 'PUT' && path === '/bills/bill-conflict/draft') {
       state.conflictDraftBodies.push(body);
       return fulfill({ ...conflictBill(), revision: conflictBill().revision + 1, conflict: null, syncState: 'PENDING' });
@@ -160,6 +191,14 @@ async function installApi(page: Page): Promise<ApiState> {
         paymentEligibility: { eligible: true, verifiedAt: NOW },
       };
       return fulfill(state.bill);
+    }
+    if (method === 'POST' && path === '/bills/bill-existing/sync') {
+      state.syncCount += 1;
+      state.existing = {
+        ...state.existing, syncState: 'SYNCED', lastSyncedAt: NOW,
+        paymentEligibility: { eligible: true, verifiedAt: NOW },
+      };
+      return fulfill(state.existing);
     }
     if (method === 'GET' && path === '/bills/bill-new/print') {
       state.printCount += 1;
@@ -236,6 +275,40 @@ test('launch ticket is exchanged from the fragment and erased before bootstrap c
   expect(state.exchangedTicket).toBe('one-use-fragment-ticket');
   expect(new URL(page.url()).hash).toBe('');
   expect(new URL(page.url()).searchParams.has('ticket')).toBe(false);
+});
+
+test('an existing order saves, returns to the floor, and keeps per-unit kitchen notes distinct', async ({ page }) => {
+  const state = await installApi(page);
+  await page.goto('./');
+  await page.getByRole('button', { name: /Mesa 1, Cuenta abierta/ }).click();
+
+  const ticket = page.getByRole('complementary', { name: 'Cuenta actual' });
+  await expect(ticket.getByText('La nota aplica a las 2 unidades.')).toBeVisible();
+  await ticket.getByLabel('Nota para las 2 unidades').fill('Sin cebolla');
+  await ticket.getByRole('button', { name: 'Separar 1 unidad' }).click();
+
+  await expect(ticket.locator('article.ticket-line')).toHaveCount(2);
+  const noteInputs = ticket.getByLabel('Nota para esta unidad');
+  await expect(noteInputs).toHaveCount(2);
+  await expect(noteInputs.nth(0)).toHaveValue('Sin cebolla');
+  await expect(noteInputs.nth(1)).toHaveValue('');
+
+  await page.getByRole('button', { name: 'Guardar ahora' }).click();
+  await expect(page.getByText('La cuenta quedó guardada y sincronizada con Contífico.')).toBeVisible();
+  await expect.poll(() => state.draftBodies.length).toBe(1);
+  expect(state.draftBodies[0].items).toEqual([
+    { lineId: 'line-existing', catalogItemId: 'prod-1', quantity: 1, notes: 'Sin cebolla' },
+    { catalogItemId: 'prod-1', quantity: 1 },
+  ]);
+  expect(state.syncCount).toBe(1);
+
+  await noteInputs.nth(1).fill('Con cebolla');
+  await page.getByRole('button', { name: 'Mesas' }).click();
+  await expect(page.getByRole('heading', { name: 'Mapa de mesas' })).toBeVisible();
+  await expect.poll(() => state.draftBodies.length).toBe(2);
+  expect(state.draftBodies[1].items[1]).toEqual({
+    lineId: 'server-line-1', catalogItemId: 'prod-1', quantity: 1, notes: 'Con cebolla',
+  });
 });
 
 test('manager floor, open bill, autosave, stable line update, print and payment', async ({ page }) => {

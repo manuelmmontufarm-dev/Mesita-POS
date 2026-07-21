@@ -42,6 +42,32 @@ export function calculateDraftTotal(items: BillItem[]): number {
   return items.reduce((total, item) => total + item.unitPriceCents * item.quantity, 0);
 }
 
+/**
+ * Separates one unit from a grouped ticket line so it can carry its own
+ * kitchen note. The existing note stays on the original group and the new
+ * unit starts without a note, making the scope unambiguous on the PRE.
+ */
+export function splitDraftItemUnit(
+  items: BillItem[],
+  clientLineId: string,
+  separatedClientLineId = newClientLineId(),
+): BillItem[] {
+  return items.flatMap((item) => {
+    if (item.clientLineId !== clientLineId || item.quantity <= 1) return [item];
+    return [
+      { ...item, quantity: item.quantity - 1 },
+      {
+        ...item,
+        id: undefined,
+        clientLineId: separatedClientLineId,
+        quantity: 1,
+        lineTotalCents: undefined,
+        notes: '',
+      },
+    ];
+  });
+}
+
 export function draftFingerprint(draft: OrderDraft): string {
   return JSON.stringify({
     diners: draft.diners,

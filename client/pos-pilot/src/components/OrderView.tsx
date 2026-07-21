@@ -13,6 +13,7 @@ import {
   paymentMethodLabel,
   isRemoteMoneyConflict,
   settlementRetryBlockReason,
+  splitDraftItemUnit,
 } from '../domain';
 import { clearDurableDraft, clearSettlementIntent, readSettlementIntent, resolveDraftRecovery } from '../localPersistence';
 import type {
@@ -160,14 +161,24 @@ export function OrderView({ initialBill, table, zone, catalog, paymentMethods, c
     }));
   }
 
+  function splitOneUnit(clientLineId: string) {
+    if (!editable) return;
+    setDraft((current) => ({
+      ...current,
+      items: splitDraftItemUnit(current.items, clientLineId),
+    }));
+  }
+
   async function syncNow(): Promise<Bill | null> {
     setBusyAction('sync');
     setError('');
+    setActionMessage('');
     try {
       const saved = await autosave.flushNow();
-      if (!saved && autosave.dirty) return null;
+      if (!saved) return null;
       const synced = await posApi.syncBill(bill.id);
       setBill(synced);
+      setActionMessage('La cuenta quedó guardada y sincronizada con Contífico.');
       return synced;
     } catch (caught) {
       const message = caught instanceof ApiError ? caught.message : 'No se pudo sincronizar con Contífico.';
@@ -232,14 +243,22 @@ export function OrderView({ initialBill, table, zone, catalog, paymentMethods, c
   }
 
   async function leaveOrder() {
-    if (autosave.dirty && editable) {
-      const saved = await autosave.flushNow();
-      if (!saved) {
-        setError('No puedes salir mientras haya cambios sin guardar. Revisa la conexión o descarta los cambios recargando la cuenta.');
-        return;
+    setBusyAction('leave');
+    setError('');
+    try {
+      if (autosave.dirty && editable) {
+        const saved = await autosave.flushNow();
+        if (!saved) {
+          setError('No puedes salir mientras haya cambios sin guardar. Revisa la conexión e intenta Guardar ahora nuevamente.');
+          return;
+        }
       }
+      await onBack();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'La cuenta se guardó, pero no pudimos volver al salón. Intenta nuevamente.');
+    } finally {
+      setBusyAction('');
     }
-    await onBack();
   }
 
   async function resolveConflict(resolution: 'ACCEPT_REMOTE' | 'RETRY_LOCAL') {
@@ -304,7 +323,7 @@ export function OrderView({ initialBill, table, zone, catalog, paymentMethods, c
   return (
     <main className="order-page" id="main-content">
       <header className="order-toolbar">
-        <button className="button ghost" onClick={() => void leaveOrder()}><Icon name="arrow-left" /> Mesas</button>
+        <AsyncButton className="button ghost" busy={busyAction === 'leave'} onClick={() => void leaveOrder()}><Icon name="arrow-left" /> Mesas</AsyncButton>
         <div className="order-identity">
           <strong>{table.name}</strong>
           <span>{zone?.name || 'Sin zona'} · {bill.remoteNumber ? `PRE ${bill.remoteNumber}` : 'PRE aún sin número'}</span>
@@ -328,7 +347,7 @@ export function OrderView({ initialBill, table, zone, catalog, paymentMethods, c
       </header>
 
       {error && <div className="order-alert"><Notice tone="danger" title="Acción no completada">{error}</Notice></div>}
-      {actionMessage && <div className="order-alert"><Notice tone="success" title="Conciliación actualizada">{actionMessage}</Notice></div>}
+      {actionMessage && <div className="order-alert"><Notice tone="success" title="Acción completada">{actionMessage}</Notice></div>}
       {recoveredDraft && (
         <div className="order-alert"><Notice tone="info" title="Cambios locales recuperados">La copia pendiente de este dispositivo se restauró y se enviará con la revisión original. No cierres la cuenta hasta que aparezca como guardada.</Notice></div>
       )}
@@ -446,7 +465,16 @@ export function OrderView({ initialBill, table, zone, catalog, paymentMethods, c
                   <span className="stepper"><button type="button" disabled={!editable} onClick={() => changeQuantity(item.clientLineId, -1)} aria-label={`Restar ${item.name}`}><Icon name={item.quantity === 1 ? 'trash' : 'minus'} size={15} /></button><output>{item.quantity}</output><button type="button" disabled={!editable} onClick={() => changeQuantity(item.clientLineId, 1)} aria-label={`Añadir ${item.name}`}><Icon name="plus" size={15} /></button></span>
                   <span>{formatMoney(item.unitPriceCents, currency)} c/u</span>
                 </div>
-                <label className="line-note"><span className="sr-only">Nota para {item.name}</span><input value={item.notes} disabled={!editable} maxLength={240} placeholder="Añadir nota (sin sal, término…)" onChange={(event) => setDraft((current) => ({ ...current, items: current.items.map((candidate) => candidate.clientLineId === item.clientLineId ? { ...candidate, notes: event.target.value } : candidate) }))} /></label>
+                <label className="line-note">
+                  <span>Nota para {item.quantity === 1 ? 'esta unidad' : `las ${item.quantity} unidades`}</span>
+                  <input value={item.notes} disabled={!editable} maxLength={240} placeholder="Añadir nota (sin sal, término…)" onChange={(event) => setDraft((current) => ({ ...current, items: current.items.map((candidate) => candidate.clientLineId === item.clientLineId ? { ...candidate, notes: event.target.value } : candidate) }))} />
+                </label>
+                {item.quantity > 1 && (
+                  <div className="line-note-scope">
+                    <span>La nota aplica a las {item.quantity} unidades.</span>
+                    <button type="button" disabled={!editable} onClick={() => splitOneUnit(item.clientLineId)}>Separar 1 unidad</button>
+                  </div>
+                )}
               </article>
             ))}
           </div>

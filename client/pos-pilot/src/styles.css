@@ -256,8 +256,12 @@ input:focus, textarea:focus, select:focus { border-color: var(--blue); box-shado
 .line-controls .stepper { grid-template-columns: 30px 30px 30px; }
 .line-controls .stepper button { width: 30px; height: 28px; }
 .line-controls .stepper output { min-width: 30px; font-size: 10px; }
-.line-note { display: block; margin-top: 8px; }
+.line-note { display: grid; gap: 5px; margin-top: 8px; }
+.line-note > span { color: #617187; font-size: 8px; font-weight: 750; }
 .line-note input { height: 32px; padding: 0 9px; border-color: #dce4eb; background: #f8fafb; font-size: 9px; }
+.line-note-scope { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 5px; color: #6f7d8f; font-size: 8px; }
+.line-note-scope button { flex: 0 0 auto; padding: 3px 0; border: 0; background: transparent; color: var(--blue); font: inherit; font-weight: 800; text-decoration: underline; text-underline-offset: 2px; }
+.line-note-scope button:disabled { color: var(--muted); text-decoration: none; }
 .order-note { display: grid; gap: 5px; padding: 10px 15px; border-top: 1px solid var(--line); color: #536278; font-size: 9px; font-weight: 750; }
 .order-note textarea { min-height: 50px; font-size: 10px; }
 .ticket-summary { padding: 13px 15px 14px; border-top: 1px solid var(--line); background: #f9fbfc; }
