@@ -44,6 +44,12 @@ Formato de cada entrada:
 
 ## 🗂️ Registro de cambios (lo más nuevo primero)
 
+### 2026-07-26 — Contífico Lab: el POS de mesero ahora usa el sistema de diseño del POS
+
+- **Qué:** `public/contifico-lab.html` reescrito para **reusar `/pos-v2/pos.css`** (la paleta Contífico/Siigo azul del POS real) en vez de estilos propios: `.topbar` + `.brand-mark`, `.tcard` para las mesas, `.pcard` para los platos, `.bill/.bill-head/.bill-items/.li/.totals` para la cuenta, `.btn-primary/.btn-ok/.btn-danger-soft`, `.toast` y `.pill-doc PRE` para la secuencia. El único CSS propio que queda es la rejilla de 3 columnas. `src/api/contifico-lab.js`: `/agregar` ahora **incrementa la cantidad** de la línea existente del mismo producto (UPDATE) en vez de insertar una línea nueva — una fila por producto en `factura_detalle`, como el POS real.
+- **Por qué:** el usuario quería mantener la simplicidad del lab pero con el look del POS actual, y que "funcione como Contífico".
+- **Qué hace:** el lab se ve como una pantalla más del POS (misma tipografía Inter, mismos azules, mismas tarjetas y toasts) sin perder la simplicidad de 3 columnas, y la pre-cuenta acumula cantidades como en el POS. Verificado E2E de nuevo: Mesa 7 → 3× Café pasado en UNA línea (`cantidad=3.00`) → FACTURAR → `001-002-000000002`, `estado=C`, `tipo_sincro=C`, y la mesa **desaparece** de la query del Bridge (`mesita_ro`).
+
 ### 2026-07-26 — Contífico Lab: POS de mesero contra el MySQL simulado de Contífico (rama feat/contifico-lab)
 
 - **Qué:** nuevo `src/api/contifico-lab.js` (router Express, gateado por `CONTIFICO_LAB=1`, montado antes del rate-limiter), nueva UI `public/contifico-lab.html` (mesero: grid de 8 mesas + 12 platos con botones de tap rápido + Pre-Cuenta/FACTURAR/Anular), `src/app.js` (montaje + en modo lab tolera arrancar sin `DATABASE_URL`), dep `mysql2`.

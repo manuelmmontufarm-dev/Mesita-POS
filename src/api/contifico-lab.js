@@ -145,10 +145,20 @@ router.post('/agregar', async (req, res, next) => {
       'INSERT INTO inventario_producto (id, nombre) VALUES (?, ?) ON DUPLICATE KEY UPDATE nombre = VALUES(nombre)',
       [pid, String(nombre)],
     );
-    await conn.query(
-      'INSERT INTO factura_detalle (idfactura_cabecera, id_producto, cantidad, precio) VALUES (?, ?, ?, ?)',
-      [cab.idfactura_cabecera, pid, cantidad, r2(precio)],
+    // Como el POS real: el mismo producto INCREMENTA la cantidad de su línea,
+    // no crea una línea nueva (una fila por producto en factura_detalle).
+    const [ya] = await conn.query(
+      'SELECT id FROM factura_detalle WHERE idfactura_cabecera = ? AND id_producto = ? AND precio = ? LIMIT 1',
+      [cab.idfactura_cabecera, pid, r2(precio)],
     );
+    if (ya[0]) {
+      await conn.query('UPDATE factura_detalle SET cantidad = cantidad + ? WHERE id = ?', [cantidad, ya[0].id]);
+    } else {
+      await conn.query(
+        'INSERT INTO factura_detalle (idfactura_cabecera, id_producto, cantidad, precio) VALUES (?, ?, ?, ?)',
+        [cab.idfactura_cabecera, pid, cantidad, r2(precio)],
+      );
+    }
     const tot = await recalcular(conn, cab.idfactura_cabecera);
     res.json({ ok: true, ...tot });
   } catch (err) { next(err); }
