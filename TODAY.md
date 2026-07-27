@@ -44,6 +44,12 @@ Formato de cada entrada:
 
 ## 🗂️ Registro de cambios (lo más nuevo primero)
 
+### 2026-07-26 — Contífico Lab: POS de mesero contra el MySQL simulado de Contífico (rama feat/contifico-lab)
+
+- **Qué:** nuevo `src/api/contifico-lab.js` (router Express, gateado por `CONTIFICO_LAB=1`, montado antes del rate-limiter), nueva UI `public/contifico-lab.html` (mesero: grid de 8 mesas + 12 platos con botones de tap rápido + Pre-Cuenta/FACTURAR/Anular), `src/app.js` (montaje + en modo lab tolera arrancar sin `DATABASE_URL`), dep `mysql2`.
+- **Por qué:** para hacer pruebas REALISTAS del flujo Bridge de Mesita en una compu de desarrollo: el mesero "juega" en este POS y Mesita solo puede enterarse por el camino real (el agente Bridge leyendo el MySQL con `mesita_ro`, GRANT SELECT). Sin atajos ni conexiones directas POS→widget. El comportamiento replica lo VERIFICADO en la instalación real de Contífico (mesita-app/docs/BRIDGE_FINDINGS.md §2–§6).
+- **Qué hace:** cada botón escribe en `pos_contifico` (127.0.0.1:3307, ver mesita-app/scripts/bridge/pos-simulator/) exactamente como el POS de escritorio: Pre-Cuenta = INSERT `factura_cabecera` `tipo='F' estado='P'` con tag `MESITA_TABLE:<mesa>` en `descripcion`; platos = `factura_detalle` + upsert `inventario_producto` + recálculo subtotal/IVA 15%/servicio 10%; **FACTURAR = UPDATE local instantáneo P→C** + `documento` + `autorizacion` (49 dígitos) + fila `forma_pagos` TC + `tipo_sincro='C'` — con lo que el doc **desaparece de la query del Bridge** (la señal de cierre real). Verificado E2E: pre-cuenta visible vía `mesita_ro` → facturar → drop del snapshot + documento `001-002-000000001` + `forma_pagos TC $17.25`. Correr: `CONTIFICO_LAB=1 PORT=4090 node src/app.js` → `http://localhost:4090/contifico-lab.html`. NUNCA activo en Railway (flag env).
+
 ### 2026-07-06 — POS: botón Añadir mesa visible + cache-bust en deploy
 
 - **Qué:** `public/pos-v2/floor.jsx`, `pos.css`, `scripts/build-pos-v2.js`, `public/index.html`, `public/pos-v2.html`, bundles `dist/`.

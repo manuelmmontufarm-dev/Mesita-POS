@@ -34,6 +34,16 @@ app.use(morgan('combined', {
   stream: { write: (msg) => logger.info(msg.trim()) },
 }));
 
+// ---------------------------------------------------------------------------
+// Contífico Lab (SOLO local, CONTIFICO_LAB=1): el POS de mesero que escribe al
+// MySQL simulado de Contífico. Va ANTES del rate-limiter para que los taps
+// rápidos del mesero no se throttleen. Nunca activo en Railway/producción.
+// ---------------------------------------------------------------------------
+if (process.env.CONTIFICO_LAB === '1') {
+  // eslint-disable-next-line global-require
+  app.use('/lab', express.json(), require('./api/contifico-lab'));
+}
+
 // Rate limiting — 200 req/min per IP (Railway free tier safe)
 const limiter = rateLimit({
   windowMs: 60 * 1000,
@@ -171,7 +181,14 @@ const PORT = env.PORT;
 
 async function start() {
   try {
-    await initDatabase();
+    try {
+      await initDatabase();
+    } catch (err) {
+      // Contífico Lab corre sin la BD de plataforma (Prisma/Supabase): el POS
+      // de mesero solo escribe al MySQL simulado. Fuera del lab, sí es fatal.
+      if (process.env.CONTIFICO_LAB !== '1') throw err;
+      logger.warn(`BD de plataforma no disponible — Contífico Lab sigue sin Prisma: ${err.message}`);
+    }
     app.listen(PORT, '0.0.0.0', () => {
       logger.info(`POS Mesita Demo running on port ${PORT}`);
       logger.info(`Swagger UI: http://localhost:${PORT}/sistema/api/v1/docs`);
