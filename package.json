@@ -2,7 +2,7 @@
   "name": "pos-mesita-demo",
   "version": "1.0.0",
   "description": "Demo POS system for MesitaQR + Contifico integration testing",
-  "main": "src/app.js",
+  "main": "desktop/main.cjs",
   "type": "commonjs",
   "scripts": {
     "start": "node scripts/start-production.js",
@@ -14,7 +14,9 @@
     "db:seed": "node scripts/seed.js",
     "test": "jest --forceExit",
     "test:watch": "jest --watch",
-    "build:pos-v2": "node scripts/build-pos-v2.js"
+    "build:pos-v2": "node scripts/build-pos-v2.js",
+    "desktop": "electron .",
+    "dist:desktop": "electron-builder --mac dir --arm64 --config desktop/builder.yml && cp -R node_modules/.prisma 'dist-desktop/mac-arm64/Contifico POS Lab.app/Contents/Resources/app/node_modules/'"
   },
   "keywords": [
     "pos",
@@ -45,6 +47,8 @@
     "@babel/core": "^7.29.7",
     "@babel/preset-react": "^7.29.7",
     "@types/jest": "^29.5.11",
+    "electron": "^43.2.0",
+    "electron-builder": "^26.15.3",
     "jest": "^29.7.0",
     "nodemon": "^3.0.2",
     "react": "^18.3.1",

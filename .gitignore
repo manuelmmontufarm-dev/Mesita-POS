@@ -22,3 +22,4 @@ Thumbs.db
 # public/pos-v2/dist is COMMITTED build output (npm run build:pos-v2) —
 # the generic dist/ rule above must not swallow it.
 !public/pos-v2/dist/
+dist-desktop/

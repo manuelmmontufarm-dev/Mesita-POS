@@ -11,8 +11,8 @@
 <!-- MISMO sistema de diseño del POS (paleta Contífico/Siigo) -->
 <link rel="stylesheet" href="/pos-v2/pos.css" />
 <style>
-  /* Único CSS propio del lab: la rejilla de 3 columnas. Todo lo demás
-     (botones, tarjetas, cuenta, toasts) son clases del POS. */
+  /* Único CSS propio del lab: la rejilla de 3 columnas + panel Bridge. Todo lo
+     demás (botones, tarjetas, cuenta, toasts) son clases del POS. */
   .lab { display: grid; grid-template-columns: 300px 1fr 360px; gap: 0; height: calc(100vh - 63px); }
   @media (max-width: 1100px) { .lab { grid-template-columns: 1fr; height: auto; } }
   .lab-col { padding: 20px; overflow-y: auto; }
@@ -28,9 +28,31 @@
   .lab .prods { grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); }
   .lab .pcard { min-height: 0; padding: 13px 14px; gap: 3px; }
   .lab .pcard:disabled { opacity: .45; pointer-events: none; }
+  .lab .pcard:active { transform: scale(.96); transition: transform .04s; }
   .lab .acts { display: flex; gap: 8px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
   .hint { color: var(--ink-mut); font-size: .88rem; padding: 10px 2px 16px; }
   [hidden] { display: none !important; }   /* .pill-doc trae display:inline-block */
+
+  /* línea pendiente de confirmar por el servidor (optimista) */
+  .li.pend { opacity: .55; }
+  .li.pend .lp::after { content: " ⏳"; font-size: .7em; }
+
+  /* ── panel Verificar Bridge ── */
+  .scrim2 { position: fixed; inset: 0; background: rgba(34,43,69,.4); backdrop-filter: blur(3px); z-index: 90; display: grid; place-items: center; }
+  .bpanel { width: min(560px, 92vw); max-height: 86vh; overflow-y: auto; background: var(--surface); border-radius: var(--r-lg); box-shadow: var(--sh-lg); padding: 22px 24px; }
+  .bpanel h2 { font-size: 1.15rem; font-weight: 800; letter-spacing: -.02em; display: flex; align-items: center; gap: 9px; }
+  .bpanel .sub2 { font-size: .84rem; color: var(--ink-mut); margin: 4px 0 16px; }
+  .bcheck { display: flex; align-items: flex-start; gap: 11px; border: 1px solid var(--line); border-radius: var(--r-md); padding: 11px 13px; margin-bottom: 8px; transition: all .3s var(--ease); }
+  .bcheck.ok { border-color: rgba(97,155,46,.45); background: var(--ok-soft); }
+  .bcheck.bad { border-color: rgba(212,33,67,.4); background: var(--bad-soft); }
+  .bcheck .bi { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: .78rem; font-weight: 800; flex: 0 0 auto; background: var(--muted-surf); color: var(--ink-mut); }
+  .bcheck.ok .bi { background: var(--ok); color: #fff; }
+  .bcheck.bad .bi { background: var(--bad); color: #fff; }
+  .bcheck b { font-size: .9rem; display: block; }
+  .bcheck small { font-size: .78rem; color: var(--ink-mut); }
+  .bconn { margin-top: 14px; border-top: 1px dashed var(--line); padding-top: 12px; font-size: .82rem; }
+  .bconn .row2 { display: flex; justify-content: space-between; padding: 3px 0; }
+  .bconn .row2 code { background: var(--muted-surf); border-radius: 6px; padding: 1px 8px; font-size: .8rem; }
 </style>
 </head>
 <body>
@@ -45,6 +67,7 @@
     <span class="brand-name">Contífico Lab<small>POS de mesero · laboratorio</small></span>
   </div>
   <span class="spacer" style="flex:1"></span>
+  <button class="btn btn-outline btn-sm" id="btnBridge">🔌 Verificar Bridge</button>
   <span class="api-pill" id="conn">Conectando…</span>
 </header>
 
@@ -81,6 +104,7 @@
 </div>
 
 <div class="toasts" id="toasts"></div>
+<div class="scrim2" id="bridgeScrim" hidden></div>
 
 <script>
 const MESAS = ["Mesa 1","Mesa 2","Mesa 3","Mesa 4","Mesa 5","Mesa 6","Mesa 7","Mesa 8"];
@@ -92,8 +116,11 @@ const PRODUCTOS = [
 ];
 const $ = (id) => document.getElementById(id);
 let sel = null, estado = { mesas: [] };
+let inflight = 0;          // ops optimistas sin confirmar → el poll no pisa la UI
+let tmpId = -1;            // ids locales para líneas aún no confirmadas
 
 const money = (n) => "$" + n.toFixed(2);
+const r2 = (n) => Math.round(n * 100) / 100;
 const abierta = (m) => estado.mesas.find((x) => x.mesa === m) || null;
 
 function toast(msg, kind = "ok", emoji = "✓") {
@@ -113,6 +140,32 @@ async function api(path, body) {
   const j = await res.json().catch(() => ({}));
   if (!res.ok || j.ok === false) throw new Error(j.error || res.statusText);
   return j;
+}
+
+/* Recalcular totales locales de una mesa (mismo modelo que el servidor). */
+function recalc(m) {
+  m.subtotal = r2(m.items.reduce((s, i) => s + i.precio * i.cantidad, 0));
+  m.iva = r2(m.subtotal * 0.15);
+  m.servicio = r2(m.subtotal * 0.10);
+  m.total = r2(m.subtotal + m.iva + m.servicio);
+}
+
+/* Toda op es OPTIMISTA: muta el estado local YA, pinta YA, y sincroniza
+   detrás. El sync va por una COLA secuencial — si dos taps salieran en
+   paralelo, el /agregar podría correr antes de que el /precuenta committee
+   (nos pasó: se perdían platos). La UI nunca espera; el servidor va en orden. */
+let cola = Promise.resolve();
+function optimista(mutar, sync) {
+  mutar();
+  pintar();
+  inflight++;
+  cola = cola
+    .then(sync)
+    .catch((e) => { toast(e.message, "bad", "✕"); })
+    .finally(async () => {
+      inflight--;
+      if (inflight === 0) await refrescar(true);
+    });
 }
 
 function pintar() {
@@ -145,7 +198,7 @@ function pintar() {
   $("btnAnu").disabled = !a;
 
   $("lineas").innerHTML = a && a.items.length
-    ? a.items.map((i) => `<div class="li">
+    ? a.items.map((i) => `<div class="li ${i.lineaId < 0 ? "pend" : ""}">
         <span class="lpi">${(PRODUCTOS.find((p) => p[1] === i.nombre) || ["🍽"])[0]}</span>
         <span class="lmain"><span class="lnm">${i.nombre}</span>
           <span class="qty"><span class="qv">${i.cantidad}</span><span class="qx">× ${money(i.precio)}</span></span></span>
@@ -164,7 +217,8 @@ function pintar() {
     <div class="tr grand"><span>Total</span><span class="tnum">${money(a.total)}</span></div>` : "";
 }
 
-async function refrescar() {
+async function refrescar(force = false) {
+  if (inflight > 0 && !force) { pintar(); return; }  // no pisar la UI optimista
   try {
     estado = await api("/state");
     $("conn").textContent = "MySQL pos_contifico · en línea";
@@ -176,31 +230,95 @@ async function refrescar() {
   pintar();
 }
 
-async function agregar(i) {
+/* ── acciones (instantáneas) ── */
+function agregar(i) {
   if (!sel) return;
   const [, nombre, precio] = PRODUCTOS[i];
-  try { await api("/agregar", { mesa: sel, nombre, precio, cantidad: 1 }); await refrescar(); }
-  catch (e) { toast(e.message, "bad", "✕"); }
+  const mesa = sel;
+  optimista(() => {
+    const m = abierta(mesa); if (!m) return;
+    const linea = m.items.find((x) => x.nombre === nombre && x.precio === precio);
+    if (linea) linea.cantidad += 1;
+    else m.items.push({ lineaId: tmpId--, nombre, precio, cantidad: 1 });
+    recalc(m);
+  }, () => api("/agregar", { mesa, nombre, precio, cantidad: 1 }));
 }
-async function quitar(lineaId) {
-  try { await api("/quitar", { mesa: sel, lineaId }); await refrescar(); }
-  catch (e) { toast(e.message, "bad", "✕"); }
+
+function quitar(lineaId) {
+  const mesa = sel;
+  optimista(() => {
+    const m = abierta(mesa); if (!m) return;
+    m.items = m.items.filter((x) => x.lineaId !== lineaId);
+    recalc(m);
+  }, () => (lineaId < 0 ? Promise.resolve() : api("/quitar", { mesa, lineaId })));
 }
-$("btnPre").addEventListener("click", async () => {
-  try { const r = await api("/precuenta", { mesa: sel }); toast(`Pre-cuenta ${r.secuencia} abierta — ya la ve el Bridge`, "mqr", "🧾"); await refrescar(); }
-  catch (e) { toast(e.message, "bad", "✕"); }
+
+$("btnPre").addEventListener("click", () => {
+  const mesa = sel;
+  optimista(() => {
+    estado.mesas.push({ mesa, secuencia: "PRE-…", total: 0, subtotal: 0, iva: 0, servicio: 0, items: [] });
+  }, async () => {
+    const r = await api("/precuenta", { mesa });
+    toast(`Pre-cuenta ${r.secuencia} abierta — ya la ve el Bridge`, "mqr", "🧾");
+  });
 });
-$("btnFac").addEventListener("click", async () => {
-  try { const r = await api("/facturar", { mesa: sel, formaPago: "TC" }); toast(`Facturado ${r.documento} · ${money(r.total)} — P→C, sale del Bridge`, "ok", "✓"); await refrescar(); }
-  catch (e) { toast(e.message, "bad", "✕"); }
+
+$("btnFac").addEventListener("click", () => {
+  const mesa = sel, total = abierta(mesa)?.total ?? 0;
+  optimista(() => {
+    estado.mesas = estado.mesas.filter((m) => m.mesa !== mesa);
+  }, async () => {
+    const r = await api("/facturar", { mesa, formaPago: "TC" });
+    toast(`Facturado ${r.documento} · ${money(r.total ?? total)} — P→C, sale del Bridge`, "ok", "✓");
+  });
 });
-$("btnAnu").addEventListener("click", async () => {
-  try { await api("/anular", { mesa: sel }); toast("Pre-cuenta anulada (estado A)", "bad", "⊘"); await refrescar(); }
-  catch (e) { toast(e.message, "bad", "✕"); }
+
+$("btnAnu").addEventListener("click", () => {
+  const mesa = sel;
+  optimista(() => {
+    estado.mesas = estado.mesas.filter((m) => m.mesa !== mesa);
+  }, async () => {
+    await api("/anular", { mesa });
+    toast("Pre-cuenta anulada (estado A)", "bad", "⊘");
+  });
+});
+
+/* ── panel Verificar Bridge: todo lo necesario para conectar el puente ── */
+$("btnBridge").addEventListener("click", async () => {
+  const scrim = $("bridgeScrim");
+  scrim.hidden = false;
+  const box = (st, t, s) => `<div class="bcheck ${st}"><span class="bi">${st === "ok" ? "✓" : st === "bad" ? "✕" : "…"}</span><div><b>${t}</b><small>${s}</small></div></div>`;
+  scrim.innerHTML = `<div class="bpanel"><h2>🔌 Conexión con el Bridge</h2>
+    <div class="sub2">Verificando que el agente de Mesita pueda leer este POS…</div>
+    ${box("", "Consultando", "Un momento…")}</div>`;
+  scrim.onclick = (e) => { if (e.target === scrim) scrim.hidden = true; };
+  try {
+    const r = await api("/bridge-check");
+    const c = r.checks;
+    scrim.innerHTML = `<div class="bpanel">
+      <h2>🔌 Conexión con el Bridge</h2>
+      <div class="sub2">Esto es lo que el agente de Mesita Caja ve al conectarse a este POS.</div>
+      ${box(c.mysql ? "ok" : "bad", "MySQL del POS alcanzable", c.mysql ? `Conectado a ${r.conn.host}:${r.conn.port}` : "No responde — ¿está corriendo el MySQL en 3307?")}
+      ${box(c.schema ? "ok" : "bad", "Esquema pos_contifico presente", c.schema ? "factura_cabecera, factura_detalle e inventario_producto existen." : "Faltan tablas — carga init/01-schema.sql")}
+      ${box(c.readOnly ? "ok" : "bad", "Usuario mesita_ro SOLO lectura", c.readOnly ? "Un DELETE fue denegado — el Bridge no puede escribir jamás." : "¡El usuario puede escribir! Revisa los GRANT.")}
+      ${box(c.query ? "ok" : "bad", "Query del agente funciona", c.query ? `${r.precuentas.length} pre-cuenta(s) visibles ahora: ${r.precuentas.map((p) => `${p.mesa} (${money(Number(p.total))})`).join(", ") || "ninguna abierta"}` : "La query exacta del agente falló.")}
+      <div class="bconn">
+        <b style="font-size:.8rem">Datos para el asistente de Mesita Caja</b>
+        <div class="row2"><span>Host</span><code>${r.conn.host}</code></div>
+        <div class="row2"><span>Puerto</span><code>${r.conn.port}</code></div>
+        <div class="row2"><span>Base</span><code>${r.conn.database}</code></div>
+        <div class="row2"><span>Usuario</span><code>mesita_ro</code></div>
+        <div class="row2"><span>Clave</span><code>readonly</code></div>
+      </div>
+    </div>`;
+  } catch (e) {
+    scrim.innerHTML = `<div class="bpanel"><h2>🔌 Conexión con el Bridge</h2>
+      ${box("bad", "No se pudo verificar", e.message)}</div>`;
+  }
 });
 
 refrescar();
-setInterval(refrescar, 2500);
+setInterval(() => refrescar(), 2500);
 </script>
 </body>
 </html>

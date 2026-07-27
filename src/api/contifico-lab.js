@@ -200,6 +200,50 @@ router.post('/facturar', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── GET /bridge-check — todo lo necesario para verificar la conexión del puente ──
+// Se conecta EXACTAMENTE como lo hará el agente de Mesita Caja (usuario
+// mesita_ro/readonly), corre su query real, y PRUEBA que no puede escribir.
+router.get('/bridge-check', async (_req, res, next) => {
+  const conn = {
+    host: process.env.POS_SIM_HOST || '127.0.0.1',
+    port: Number(process.env.POS_SIM_PORT || 3307),
+    database: process.env.POS_SIM_DB || 'pos_contifico',
+  };
+  const checks = { mysql: false, schema: false, readOnly: false, query: false };
+  let precuentas = [];
+  let ro = null;
+  try {
+    // eslint-disable-next-line global-require
+    const mysql = require('mysql2/promise');
+    ro = await mysql.createConnection({ ...conn, user: 'mesita_ro', password: 'readonly' });
+    checks.mysql = true;
+
+    const [tables] = await ro.query('SHOW TABLES');
+    const names = tables.map((t) => Object.values(t)[0]);
+    checks.schema = ['factura_cabecera', 'factura_detalle', 'inventario_producto'].every((t) => names.includes(t));
+
+    // La query EXACTA del agente (BRIDGE_FINDINGS §3)
+    const [rows] = await ro.query(
+      "SELECT SUBSTRING_INDEX(c.descripcion,'MESITA_TABLE:',-1) AS mesa, c.secuencia, c.total FROM factura_cabecera c WHERE c.estado='P' AND c.tipo='F' AND c.descripcion LIKE 'MESITA_TABLE:%'",
+    );
+    checks.query = true;
+    precuentas = rows;
+
+    // Candado: un DELETE DEBE fallar con permiso denegado.
+    try {
+      await ro.query("DELETE FROM factura_cabecera WHERE 1=0");
+      checks.readOnly = false; // pudo ejecutar DELETE → MAL
+    } catch (err) {
+      checks.readOnly = /denied/i.test(String(err && err.message));
+    }
+    res.json({ ok: true, checks, precuentas, conn });
+  } catch (err) {
+    res.json({ ok: true, checks, precuentas, conn, error: String(err && err.message).slice(0, 200) });
+  } finally {
+    if (ro) ro.end().catch(() => {});
+  }
+});
+
 // ── POST /anular {mesa} — estado='A' ──
 router.post('/anular', async (req, res, next) => {
   try {
