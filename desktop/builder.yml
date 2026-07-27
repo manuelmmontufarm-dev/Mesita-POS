@@ -21,4 +21,5 @@ mac:
   target:
     - target: dir
       arch: [arm64]
+  icon: desktop/icon.png   # logo del POS (plato + cubiertos, azul Contífico) a 1024px
   category: public.app-category.business

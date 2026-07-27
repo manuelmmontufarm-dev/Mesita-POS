@@ -44,6 +44,12 @@ Formato de cada entrada:
 
 ## 🗂️ Registro de cambios (lo más nuevo primero)
 
+### 2026-07-27 — La app de escritorio tiene el logo del POS
+
+- **Qué:** `desktop/icon.png` (1024px, renderizado del `public/logo.svg` — plato + cubiertos sobre azul Contífico, vía `qlmanage`) + `mac.icon` en `desktop/builder.yml`; electron-builder genera el `.icns`.
+- **Por qué:** la app salía con el ícono genérico de Electron.
+- **Qué hace:** `Contifico POS Lab.app` se ve como una app de verdad en el Dock/Finder, pineable con su marca.
+
 ### 2026-07-27 — Lab: taps INSTANTÁNEOS (UI optimista) + panel "Verificar Bridge" + app de escritorio
 
 - **Qué:**
