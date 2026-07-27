@@ -2,10 +2,10 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "pos",
-      "runtimeExecutable": "node",
-      "runtimeArgs": ["src/app.js"],
-      "port": 3000
+      "name": "contifico-lab",
+      "runtimeExecutable": "env",
+      "runtimeArgs": ["CONTIFICO_LAB=1", "PORT=4090", "node", "src/app.js"],
+      "port": 4090
     }
   ]
 }
