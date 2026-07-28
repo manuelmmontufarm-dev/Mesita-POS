@@ -1,5 +1,8 @@
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
+
 const mockQuery = jest.fn(async (sql) => {
   if (sql === 'SHOW TABLES') {
     return [[
@@ -25,7 +28,7 @@ jest.mock('mysql2/promise', () => ({
 process.env.CONTIFICO_LAB = '1';
 const request = require('supertest');
 const app = require('../src/app');
-const { BRIDGE_OPEN_ORDERS_QUERY } = require('../src/api/contifico-lab');
+const { BRIDGE_OPEN_ORDERS_QUERY, normalizeSaveItems } = require('../src/api/contifico-lab');
 
 describe('GET /lab/bridge-check', () => {
   beforeEach(() => mockQuery.mockClear());
@@ -73,5 +76,34 @@ describe('GET /lab/bridge-check', () => {
     expect(res.text).toContain('<setting name="MesitaTableCount"');
     expect(res.text).toContain('<value>8</value>');
     expect(res.text).not.toContain('Uid=simulator');
+  });
+});
+
+describe('Guardar pre-cuenta al estilo Contífico', () => {
+  test('normaliza y consolida líneas antes del commit MySQL', () => {
+    expect(normalizeSaveItems([
+      { nombre: 'Cola', precio: 1.8, cantidad: 1 },
+      { nombre: 'Cola', precio: '1.80', cantidad: 2 },
+      { nombre: 'Ceviche', precio: 9.5, cantidad: 1 },
+    ])).toEqual([
+      { nombre: 'Cola', precio: 1.8, cantidad: 3, productoId: '574e8583' },
+      { nombre: 'Ceviche', precio: 9.5, cantidad: 1, productoId: '1a78e472' },
+    ]);
+  });
+
+  test.each([
+    [null, 'items debe ser una lista'],
+    [[{ nombre: '', precio: 1, cantidad: 1 }], 'nombre de producto inválido'],
+    [[{ nombre: 'Cola', precio: -1, cantidad: 1 }], 'precio inválido'],
+    [[{ nombre: 'Cola', precio: 1.8, cantidad: 0 }], 'cantidad inválida'],
+  ])('rechaza un borrador inválido sin tocar SQL', (items, message) => {
+    expect(() => normalizeSaveItems(items)).toThrow(message);
+  });
+
+  test('la pantalla ofrece Guardar y confirma por /lab/guardar', () => {
+    const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'contifico-lab.html'), 'utf8');
+    expect(html).toContain('id="btnSave"');
+    expect(html).toContain('api("/guardar", { mesa, items })');
+    expect(html).toContain('cambios sin guardar');
   });
 });

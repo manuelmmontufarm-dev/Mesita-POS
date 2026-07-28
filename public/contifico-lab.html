@@ -29,7 +29,8 @@
   .lab .pcard { min-height: 0; padding: 13px 14px; gap: 3px; }
   .lab .pcard:disabled { opacity: .45; pointer-events: none; }
   .lab .pcard:active { transform: scale(.96); transition: transform .04s; }
-  .lab .acts { display: flex; gap: 8px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+  .lab .acts { display: flex; flex-wrap: wrap; gap: 8px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+  .lab .acts #btnSave { flex: 1 1 150px; }
   .hint { color: var(--ink-mut); font-size: .88rem; padding: 10px 2px 16px; }
   [hidden] { display: none !important; }   /* .pill-doc trae display:inline-block */
 
@@ -95,6 +96,7 @@
       </div>
       <div class="acts">
         <button class="btn btn-primary btn-sm" id="btnPre">Pre-Cuenta</button>
+        <button class="btn btn-primary btn-sm" id="btnSave">Guardar cambios</button>
         <button class="btn btn-ok btn-sm" id="btnFac" style="flex:1">FACTURAR</button>
         <button class="btn btn-danger-soft btn-sm" id="btnAnu">Anular</button>
       </div>
@@ -119,6 +121,8 @@ const $ = (id) => document.getElementById(id);
 let sel = null, estado = { mesas: [] };
 let inflight = 0;          // ops optimistas sin confirmar → el poll no pisa la UI
 let tmpId = -1;            // ids locales para líneas aún no confirmadas
+const dirtyMesas = new Set(); // borradores: Contífico aún no los guardó en MySQL
+let savingMesa = null;
 
 const money = (n) => "$" + n.toFixed(2);
 const r2 = (n) => Math.round(n * 100) / 100;
@@ -171,6 +175,8 @@ function optimista(mutar, sync) {
 
 function pintar() {
   const a = sel ? abierta(sel) : null;
+  const dirty = !!sel && dirtyMesas.has(sel);
+  const saving = !!sel && savingMesa === sel;
   $("ctAbiertas").textContent = `${estado.mesas.length} abierta${estado.mesas.length === 1 ? "" : "s"}`;
 
   $("mesas").innerHTML = MESAS.map((m) => {
@@ -191,12 +197,16 @@ function pintar() {
   document.querySelectorAll(".pcard").forEach((b) =>
     b.addEventListener("click", () => agregar(Number(b.dataset.i))));
 
-  $("mesaSel").textContent = sel ? (a ? `${sel} · cuenta abierta` : `${sel} · sin pre-cuenta`) : "Ninguna mesa seleccionada";
+  $("mesaSel").textContent = sel
+    ? (a ? `${sel} · ${saving ? "guardando en MySQL…" : dirty ? "cambios sin guardar" : "guardado en MySQL"}` : `${sel} · sin pre-cuenta`)
+    : "Ninguna mesa seleccionada";
   const secu = $("secuencia");
   secu.hidden = !a; if (a) secu.textContent = a.secuencia;
-  $("btnPre").disabled = !sel || !!a;
-  $("btnFac").disabled = !a || !a.items.length;
-  $("btnAnu").disabled = !a;
+  $("btnPre").disabled = !sel || !!a || inflight > 0 || saving;
+  $("btnSave").disabled = !a || !dirty || inflight > 0 || saving;
+  $("btnSave").textContent = saving ? "Guardando…" : dirty ? "Guardar cambios" : "Guardado ✓";
+  $("btnFac").disabled = !a || !a.items.length || inflight > 0 || saving;
+  $("btnAnu").disabled = !a || inflight > 0 || saving;
 
   $("lineas").innerHTML = a && a.items.length
     ? a.items.map((i) => `<div class="li ${i.lineaId < 0 ? "pend" : ""}">
@@ -221,7 +231,17 @@ function pintar() {
 async function refrescar(force = false) {
   if (inflight > 0 && !force) { pintar(); return; }  // no pisar la UI optimista
   try {
-    estado = await api("/state");
+    const fresh = await api("/state");
+    // Un poll puede llegar mientras el mesero arma un borrador. Preservamos
+    // esas líneas locales hasta Guardar; el resto de mesas sí se refresca.
+    const drafts = new Map(
+      estado.mesas.filter((m) => dirtyMesas.has(m.mesa)).map((m) => [m.mesa, m]),
+    );
+    fresh.mesas = fresh.mesas.map((m) => drafts.get(m.mesa) || m);
+    for (const [mesa, draft] of drafts) {
+      if (!fresh.mesas.some((m) => m.mesa === mesa)) fresh.mesas.push(draft);
+    }
+    estado = fresh;
     $("conn").textContent = "MySQL pos_contifico · en línea";
     $("conn").style.color = "";
   } catch {
@@ -236,23 +256,47 @@ function agregar(i) {
   if (!sel) return;
   const [, nombre, precio] = PRODUCTOS[i];
   const mesa = sel;
-  optimista(() => {
-    const m = abierta(mesa); if (!m) return;
-    const linea = m.items.find((x) => x.nombre === nombre && x.precio === precio);
-    if (linea) linea.cantidad += 1;
-    else m.items.push({ lineaId: tmpId--, nombre, precio, cantidad: 1 });
-    recalc(m);
-  }, () => api("/agregar", { mesa, nombre, precio, cantidad: 1 }));
+  const m = abierta(mesa); if (!m) return;
+  const linea = m.items.find((x) => x.nombre === nombre && x.precio === precio);
+  if (linea) linea.cantidad += 1;
+  else m.items.push({ lineaId: tmpId--, nombre, precio, cantidad: 1 });
+  recalc(m);
+  dirtyMesas.add(mesa);
+  pintar();
 }
 
 function quitar(lineaId) {
   const mesa = sel;
-  optimista(() => {
-    const m = abierta(mesa); if (!m) return;
-    m.items = m.items.filter((x) => x.lineaId !== lineaId);
-    recalc(m);
-  }, () => (lineaId < 0 ? Promise.resolve() : api("/quitar", { mesa, lineaId })));
+  const m = abierta(mesa); if (!m) return;
+  m.items = m.items.filter((x) => x.lineaId !== lineaId);
+  recalc(m);
+  dirtyMesas.add(mesa);
+  pintar();
 }
+
+async function guardarMesa(mesa, { quiet = false } = {}) {
+  const m = abierta(mesa);
+  if (!m) throw new Error("No hay pre-cuenta abierta en esa mesa");
+  const items = m.items.map(({ nombre, precio, cantidad }) => ({ nombre, precio, cantidad }));
+  savingMesa = mesa;
+  pintar();
+  try {
+    const r = await api("/guardar", { mesa, items });
+    dirtyMesas.delete(mesa);
+    await refrescar(true);
+    if (!quiet) toast(`${mesa} guardada en MySQL · ${money(r.total)} · el Bridge ya puede leerla`, "mqr", "💾");
+    return r;
+  } finally {
+    savingMesa = null;
+    pintar();
+  }
+}
+
+$("btnSave").addEventListener("click", async () => {
+  if (!sel || !dirtyMesas.has(sel)) return;
+  try { await guardarMesa(sel); }
+  catch (e) { toast(e.message, "bad", "✕"); }
+});
 
 $("btnPre").addEventListener("click", () => {
   const mesa = sel;
@@ -265,18 +309,28 @@ $("btnPre").addEventListener("click", () => {
 });
 
 $("btnFac").addEventListener("click", () => {
-  const mesa = sel, total = abierta(mesa)?.total ?? 0;
-  optimista(() => {
-    estado.mesas = estado.mesas.filter((m) => m.mesa !== mesa);
-  }, async () => {
-    const r = await api("/facturar", { mesa, formaPago: "TC" });
-    toast(`Facturado ${r.documento} · ${money(r.total ?? total)} — P→C, sale del Bridge`, "ok", "✓");
-  });
+  const mesa = sel;
+  (async () => {
+    try {
+      if (dirtyMesas.has(mesa)) await guardarMesa(mesa, { quiet: true });
+      const total = abierta(mesa)?.total ?? 0;
+      savingMesa = mesa; pintar();
+      const r = await api("/facturar", { mesa, formaPago: "TC" });
+      dirtyMesas.delete(mesa);
+      await refrescar(true);
+      toast(`Facturado ${r.documento} · ${money(r.total ?? total)} — P→C, sale del Bridge`, "ok", "✓");
+    } catch (e) {
+      toast(e.message, "bad", "✕");
+    } finally {
+      savingMesa = null; pintar();
+    }
+  })();
 });
 
 $("btnAnu").addEventListener("click", () => {
   const mesa = sel;
   optimista(() => {
+    dirtyMesas.delete(mesa);
     estado.mesas = estado.mesas.filter((m) => m.mesa !== mesa);
   }, async () => {
     await api("/anular", { mesa });

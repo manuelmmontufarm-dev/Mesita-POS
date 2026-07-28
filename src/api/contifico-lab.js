@@ -133,6 +133,30 @@ const SERVICIO_RATE = 0.1;  // 10% servicio
 const r2 = (n) => Math.round(n * 100) / 100;
 const productId = (nombre) => crypto.createHash('md5').update(nombre).digest('hex').slice(0, 8);
 
+/**
+ * Valida y normaliza el borrador que la pantalla confirma con Guardar.
+ * Contífico persiste una fila de detalle por producto/precio; dos entradas
+ * iguales se consolidan en cantidad antes de tocar MySQL.
+ */
+function normalizeSaveItems(value) {
+  if (!Array.isArray(value)) throw new Error('items debe ser una lista');
+  if (value.length > 200) throw new Error('demasiados productos en la pre-cuenta');
+  const grouped = new Map();
+  for (const raw of value) {
+    const nombre = String(raw?.nombre || '').trim();
+    const precio = r2(Number(raw?.precio));
+    const cantidad = Number(raw?.cantidad);
+    if (!nombre || nombre.length > 128) throw new Error('nombre de producto inválido');
+    if (!Number.isFinite(precio) || precio < 0 || precio > 100000) throw new Error(`precio inválido para ${nombre}`);
+    if (!Number.isFinite(cantidad) || cantidad <= 0 || cantidad > 1000) throw new Error(`cantidad inválida para ${nombre}`);
+    const key = `${productId(nombre)}:${precio.toFixed(2)}`;
+    const previous = grouped.get(key);
+    if (previous) previous.cantidad = r2(previous.cantidad + cantidad);
+    else grouped.set(key, { nombre, precio, cantidad: r2(cantidad), productoId: productId(nombre) });
+  }
+  return [...grouped.values()];
+}
+
 async function cabeceraAbierta(conn, mesa) {
   const [rows] = await conn.query(
     "SELECT * FROM factura_cabecera WHERE estado='P' AND tipo='F' AND descripcion = ? LIMIT 1",
@@ -257,6 +281,67 @@ router.post('/quitar', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── POST /guardar {mesa, items[]} — confirmación nativa de la pre-cuenta ──
+// En Contífico real el documento vive en memoria hasta pulsar Pre Cuenta /
+// Guardar (BRIDGE_FINDINGS §2). Aquí hacemos lo mismo: reemplazo completo y
+// atómico de factura_detalle + recálculo de factura_cabecera. El Bridge NO es
+// llamado y conserva GRANT SELECT: solo descubrirá el commit en su siguiente
+// lectura del MySQL local.
+router.post('/guardar', async (req, res, next) => {
+  let conn = null;
+  try {
+    const mesa = String(req.body?.mesa || '').trim();
+    if (!mesa) return res.status(400).json({ ok: false, error: 'mesa requerida' });
+    let items;
+    try {
+      items = normalizeSaveItems(req.body?.items);
+    } catch (err) {
+      return res.status(400).json({ ok: false, error: err.message });
+    }
+
+    conn = await db().getConnection();
+    await conn.beginTransaction();
+    const [cabRows] = await conn.query(
+      "SELECT * FROM factura_cabecera WHERE estado='P' AND tipo='F' AND descripcion = ? LIMIT 1 FOR UPDATE",
+      [mesa],
+    );
+    const cab = cabRows[0] || null;
+    if (!cab) {
+      await conn.rollback();
+      return res.status(409).json({ ok: false, error: 'no hay pre-cuenta abierta en esa mesa' });
+    }
+
+    // El reemplazo ocurre dentro de una transacción InnoDB: el Bridge ve el
+    // snapshot anterior o el nuevo, nunca una cuenta parcialmente guardada.
+    await conn.query('DELETE FROM factura_detalle WHERE idfactura_cabecera = ?', [cab.idfactura_cabecera]);
+    for (const item of items) {
+      await conn.query(
+        'INSERT INTO inventario_producto (id, nombre) VALUES (?, ?) ON DUPLICATE KEY UPDATE nombre = VALUES(nombre)',
+        [item.productoId, item.nombre],
+      );
+      await conn.query(
+        'INSERT INTO factura_detalle (idfactura_cabecera, id_producto, cantidad, precio) VALUES (?, ?, ?, ?)',
+        [cab.idfactura_cabecera, item.productoId, item.cantidad, item.precio],
+      );
+    }
+    const totals = await recalcular(conn, cab.idfactura_cabecera);
+    await conn.commit();
+    res.json({
+      ok: true,
+      mesa,
+      secuencia: cab.secuencia,
+      items: items.length,
+      savedAt: new Date().toISOString(),
+      ...totals,
+    });
+  } catch (err) {
+    if (conn) await conn.rollback().catch(() => {});
+    next(err);
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
 // ── POST /facturar {mesa, formaPago} — P→C local instantáneo (§5) ──
 router.post('/facturar', async (req, res, next) => {
   try {
@@ -362,3 +447,4 @@ module.exports = router;
 module.exports.BRIDGE_OPEN_ORDERS_QUERY = BRIDGE_OPEN_ORDERS_QUERY;
 module.exports.bridgeSetup = bridgeSetup;
 module.exports.launcherConfig = launcherConfig;
+module.exports.normalizeSaveItems = normalizeSaveItems;
