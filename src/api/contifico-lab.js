@@ -33,6 +33,7 @@ const RO_USER = process.env.POS_SIM_RO_USER || 'mesita_ro';
 const RO_PASSWORD = process.env.POS_SIM_RO_PASSWORD || 'readonly';
 const BRIDGE_SETUP_VERSION = 1;
 const BRIDGE_PROVIDER = 'MESITA_POS_CONTIFICO_COMPAT';
+const POS_TABLE_COUNT = Math.max(1, Number(process.env.POS_SIM_TABLE_COUNT || 8));
 
 function xmlEscape(value) {
   return String(value)
@@ -70,6 +71,9 @@ function launcherConfig(conn) {
       <setting name="MesitaReadonlyAlreadyProvisioned" serializeAs="String">
         <value>true</value>
       </setting>
+      <setting name="MesitaTableCount" serializeAs="String">
+        <value>${POS_TABLE_COUNT}</value>
+      </setting>
     </Pos.Infraestructura.Properties.Settings>
   </applicationSettings>
 </configuration>
@@ -89,6 +93,11 @@ function bridgeSetup(conn) {
     launcherRequired: false,
     readonlyAlreadyProvisioned: true,
     mysql: { ...conn, user: RO_USER, password: RO_PASSWORD },
+    tables: {
+      count: POS_TABLE_COUNT,
+      source: 'pos-configuration',
+      items: Array.from({ length: POS_TABLE_COUNT }, (_, index) => `Mesa ${index + 1}`),
+    },
   };
 }
 

@@ -46,6 +46,11 @@ describe('GET /lab/bridge-check', () => {
         user: 'mesita_ro',
         password: 'readonly',
       },
+      tables: {
+        count: 8,
+        source: 'pos-configuration',
+        items: ['Mesa 1', 'Mesa 2', 'Mesa 3', 'Mesa 4', 'Mesa 5', 'Mesa 6', 'Mesa 7', 'Mesa 8'],
+      },
     });
     expect(res.body.setup).not.toHaveProperty('admin');
   });
@@ -63,6 +68,8 @@ describe('GET /lab/bridge-check', () => {
     expect(res.text).toContain('<setting name="ConexionPos"');
     expect(res.text).toContain('Server=127.0.0.1;Database=pos_contifico;Uid=mesita_ro;Pwd=readonly;Port=3307;');
     expect(res.text).toContain('<value>MESITA_POS_CONTIFICO_COMPAT</value>');
+    expect(res.text).toContain('<setting name="MesitaTableCount"');
+    expect(res.text).toContain('<value>8</value>');
     expect(res.text).not.toContain('Uid=simulator');
   });
 });

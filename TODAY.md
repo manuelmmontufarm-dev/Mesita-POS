@@ -44,6 +44,11 @@ Formato de cada entrada:
 
 ## 🗂️ Registro de cambios (lo más nuevo primero)
 
+### 2026-07-27 — El POS simulado publica su catálogo de 8 mesas
+
+- El contrato de Verificar Bridge y el `Launcher.exe.config` incluyen la cantidad de mesas configurada por el POS (`POS_SIM_TABLE_COUNT`, 8 por defecto).
+- Mesita Caja puede demostrar la misma autodetección de salón que usará con `mapa_mesas` o **Cantidad de mesas App** en Contífico real.
+
 ### 2026-07-27 — Launcher.exe.config simulado, descargable y de solo lectura
 
 - La app materializa `~/MesitaPOS/Contifico/Application/Launcher.exe.config` con el mismo `ConexionPos` que lee Mesita Caja.
