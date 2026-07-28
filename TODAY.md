@@ -44,6 +44,11 @@ Formato de cada entrada:
 
 ## 🗂️ Registro de cambios (lo más nuevo primero)
 
+### 2026-07-27 — Guardar confirma la precuenta completa en MySQL
+- **Qué:** `public/contifico-lab.html`, `src/api/contifico-lab.js`, pruebas y versión desktop 1.1.0.
+- **Por qué:** los cambios por clic no tenían un punto de confirmación visible y el mesero no podía saber cuándo la información ya estaba disponible para el Bridge.
+- **Qué hace:** los platos se editan como borrador; `Guardar cambios` reemplaza `factura_detalle` y recalcula `factura_cabecera` dentro de una sola transacción InnoDB. El POS escribe su propia base como Contífico; el Bridge sigue usando exclusivamente `SELECT` con `mesita_ro`.
+
 ### 2026-07-27 — El POS simulado publica su catálogo de 8 mesas
 
 - El contrato de Verificar Bridge y el `Launcher.exe.config` incluyen la cantidad de mesas configurada por el POS (`POS_SIM_TABLE_COUNT`, 8 por defecto).

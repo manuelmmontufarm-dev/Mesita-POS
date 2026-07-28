@@ -1,6 +1,6 @@
 {
   "name": "pos-mesita-demo",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Demo POS system for MesitaQR + Contifico integration testing",
   "main": "desktop/main.cjs",
   "type": "commonjs",
