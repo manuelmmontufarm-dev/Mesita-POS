@@ -34,6 +34,48 @@ const RO_PASSWORD = process.env.POS_SIM_RO_PASSWORD || 'readonly';
 const BRIDGE_SETUP_VERSION = 1;
 const BRIDGE_PROVIDER = 'MESITA_POS_CONTIFICO_COMPAT';
 
+function xmlEscape(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+/**
+ * Archivo compatible con el lector de Launcher.exe.config de Mesita Caja.
+ * Solo contiene el usuario preaprovisionado con GRANT SELECT; nunca expone
+ * las credenciales del usuario simulator que sí puede escribir.
+ */
+function launcherConfig(conn) {
+  const connection = [
+    `Server=${conn.host}`,
+    `Database=${conn.database}`,
+    `Uid=${RO_USER}`,
+    `Pwd=${RO_PASSWORD}`,
+    `Port=${conn.port}`,
+    'SslMode=None',
+  ].join(';') + ';';
+  return `<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <applicationSettings>
+    <Pos.Infraestructura.Properties.Settings>
+      <setting name="ConexionPos" serializeAs="String">
+        <value>${xmlEscape(connection)}</value>
+      </setting>
+      <setting name="MesitaProvider" serializeAs="String">
+        <value>${BRIDGE_PROVIDER}</value>
+      </setting>
+      <setting name="MesitaReadonlyAlreadyProvisioned" serializeAs="String">
+        <value>true</value>
+      </setting>
+    </Pos.Infraestructura.Properties.Settings>
+  </applicationSettings>
+</configuration>
+`;
+}
+
 // Debe permanecer en paridad con apps/mesita-caja/src/config.js. La Caja
 // actual lee toda PRE F/P salvo ventas de mostrador; el tag MESITA_TABLE ya no
 // es obligatorio porque el servidor resuelve nombres como "Mesa 4".
@@ -47,6 +89,14 @@ function bridgeSetup(conn) {
     launcherRequired: false,
     readonlyAlreadyProvisioned: true,
     mysql: { ...conn, user: RO_USER, password: RO_PASSWORD },
+  };
+}
+
+function simulatorConnection() {
+  return {
+    host: process.env.POS_SIM_HOST || '127.0.0.1',
+    port: Number(process.env.POS_SIM_PORT || 3307),
+    database: process.env.POS_SIM_DB || 'pos_contifico',
   };
 }
 
@@ -225,11 +275,7 @@ router.post('/facturar', async (req, res, next) => {
 // Se conecta EXACTAMENTE como lo hará el agente de Mesita Caja (usuario
 // mesita_ro/readonly), corre su query real, y PRUEBA que no puede escribir.
 router.get('/bridge-check', async (_req, res, next) => {
-  const conn = {
-    host: process.env.POS_SIM_HOST || '127.0.0.1',
-    port: Number(process.env.POS_SIM_PORT || 3307),
-    database: process.env.POS_SIM_DB || 'pos_contifico',
-  };
+  const conn = simulatorConnection();
   const checks = { mysql: false, schema: false, readOnly: false, query: false };
   let precuentas = [];
   let ro = null;
@@ -261,6 +307,10 @@ router.get('/bridge-check', async (_req, res, next) => {
       precuentas,
       conn,
       setup: bridgeSetup(conn),
+      launcher: {
+        downloadUrl: '/lab/Launcher.exe.config',
+        configPath: process.env.POS_SIM_LAUNCHER_PATH || null,
+      },
     });
   } catch (err) {
     res.json({
@@ -269,11 +319,22 @@ router.get('/bridge-check', async (_req, res, next) => {
       precuentas,
       conn,
       setup: bridgeSetup(conn),
+      launcher: {
+        downloadUrl: '/lab/Launcher.exe.config',
+        configPath: process.env.POS_SIM_LAUNCHER_PATH || null,
+      },
       error: String(err && err.message).slice(0, 200),
     });
   } finally {
     if (ro) ro.end().catch(() => {});
   }
+});
+
+// Archivo físico simulado para probar el mismo camino que Contífico real.
+router.get('/Launcher.exe.config', (_req, res) => {
+  res.type('application/xml');
+  res.set('Content-Disposition', 'attachment; filename="Launcher.exe.config"');
+  res.send(launcherConfig(simulatorConnection()));
 });
 
 // ── POST /anular {mesa} — estado='A' ──
@@ -291,3 +352,4 @@ router.post('/anular', async (req, res, next) => {
 module.exports = router;
 module.exports.BRIDGE_OPEN_ORDERS_QUERY = BRIDGE_OPEN_ORDERS_QUERY;
 module.exports.bridgeSetup = bridgeSetup;
+module.exports.launcherConfig = launcherConfig;

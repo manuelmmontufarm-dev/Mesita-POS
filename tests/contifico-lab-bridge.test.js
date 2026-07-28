@@ -56,4 +56,13 @@ describe('GET /lab/bridge-check', () => {
     expect(BRIDGE_OPEN_ORDERS_QUERY).toContain("c.descripcion IS NULL OR c.descripcion NOT LIKE 'VENTA DESDE PUNTO DE VENTA%'");
     expect(BRIDGE_OPEN_ORDERS_QUERY).not.toContain("c.descripcion LIKE 'MESITA_TABLE:%'");
   });
+
+  test('descarga un Launcher.exe.config compatible y de solo lectura', async () => {
+    const res = await request(app).get('/lab/Launcher.exe.config').expect(200);
+    expect(res.headers['content-disposition']).toContain('Launcher.exe.config');
+    expect(res.text).toContain('<setting name="ConexionPos"');
+    expect(res.text).toContain('Server=127.0.0.1;Database=pos_contifico;Uid=mesita_ro;Pwd=readonly;Port=3307;');
+    expect(res.text).toContain('<value>MESITA_POS_CONTIFICO_COMPAT</value>');
+    expect(res.text).not.toContain('Uid=simulator');
+  });
 });

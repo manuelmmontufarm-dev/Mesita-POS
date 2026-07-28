@@ -53,6 +53,7 @@
   .bconn { margin-top: 14px; border-top: 1px dashed var(--line); padding-top: 12px; font-size: .82rem; }
   .bconn .row2 { display: flex; justify-content: space-between; padding: 3px 0; }
   .bconn .row2 code { background: var(--muted-surf); border-radius: 6px; padding: 1px 8px; font-size: .8rem; }
+  .bdownload { display: flex; margin-top: 12px; text-decoration: none; justify-content: center; }
 </style>
 </head>
 <body>
@@ -304,7 +305,7 @@ $("btnBridge").addEventListener("click", async () => {
       ${box(c.query ? "ok" : "bad", "Query del agente funciona", c.query ? `${r.precuentas.length} pre-cuenta(s) visibles ahora: ${r.precuentas.map((p) => `${p.mesa} (${money(Number(p.totalCents ?? p.total))})`).join(", ") || "ninguna abierta"}` : "La query exacta del agente falló.")}
       <div class="bconn">
         <b style="font-size:.8rem">Todos los datos del asistente de Mesita Caja</b>
-        <div class="row2"><span>Launcher.exe.config</span><code>No aplica — es Mesita POS</code></div>
+        <div class="row2"><span>Launcher.exe.config</span><code>${r.launcher.configPath || "Disponible para descargar"}</code></div>
         <div class="row2"><span>Host</span><code>${r.setup.mysql.host}</code></div>
         <div class="row2"><span>Puerto</span><code>${r.setup.mysql.port}</code></div>
         <div class="row2"><span>Base de datos</span><code>${r.setup.mysql.database}</code></div>
@@ -312,6 +313,7 @@ $("btnBridge").addEventListener("click", async () => {
         <div class="row2"><span>Clave solo lectura</span><code>${r.setup.mysql.password}</code></div>
         <div class="row2"><span>Clave administrador</span><code>No se necesita — candado ya creado</code></div>
         <div class="row2"><span>Token Bridge</span><code>Se genera una vez en el portal Mesita</code></div>
+        <a class="btn btn-outline btn-sm bdownload" href="${r.launcher.downloadUrl}" download="Launcher.exe.config">⬇ Descargar Launcher.exe.config simulado</a>
       </div>
     </div>`;
   } catch (e) {

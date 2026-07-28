@@ -44,6 +44,12 @@ Formato de cada entrada:
 
 ## 🗂️ Registro de cambios (lo más nuevo primero)
 
+### 2026-07-27 — Launcher.exe.config simulado, descargable y de solo lectura
+
+- La app materializa `~/MesitaPOS/Contifico/Application/Launcher.exe.config` con el mismo `ConexionPos` que lee Mesita Caja.
+- **Verificar Bridge** muestra la ruta y permite descargar el archivo.
+- Solo incluye `mesita_ro`; las credenciales MySQL con escritura nunca salen del POS.
+
 ### 2026-07-27 — Verificar Bridge entrega el contrato completo y solo por loopback
 
 - **Qué:** `src/api/contifico-lab.js`, `public/contifico-lab.html`, `src/app.js` y `tests/contifico-lab-bridge.test.js`.

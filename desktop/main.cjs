@@ -13,6 +13,7 @@ process.env.PORT = process.env.PORT || "4611";
 process.env.NODE_ENV = process.env.NODE_ENV || "production";
 
 const { app, BrowserWindow, shell } = require("electron");
+const fs = require("fs");
 const path = require("path");
 
 const URL = `http://127.0.0.1:${process.env.PORT}/contifico-lab.html`;
@@ -48,6 +49,19 @@ app.on("web-contents-created", (_e, wc) => {
 });
 
 app.whenReady().then(async () => {
+  // Materializa el archivo que usaría Contífico. La ruta es estable y también
+  // la conoce Mesita Caja, por lo que puede autodetectarlo sin pedir al usuario
+  // que copie credenciales. Contiene exclusivamente mesita_ro (solo lectura).
+  const launcherPath = path.join(app.getPath("home"), "MesitaPOS", "Contifico", "Application", "Launcher.exe.config");
+  const { launcherConfig } = require(path.join(__dirname, "..", "src", "api", "contifico-lab.js"));
+  fs.mkdirSync(path.dirname(launcherPath), { recursive: true });
+  fs.writeFileSync(launcherPath, launcherConfig({
+    host: process.env.POS_SIM_HOST || "127.0.0.1",
+    port: Number(process.env.POS_SIM_PORT || 3307),
+    database: process.env.POS_SIM_DB || "pos_contifico",
+  }), { encoding: "utf8", mode: 0o600 });
+  process.env.POS_SIM_LAUNCHER_PATH = launcherPath;
+
   // El server del POS corre dentro de la app (no hay terminal que abrir).
   const server = require(path.join(__dirname, "..", "src", "app.js"));
   server.start();
