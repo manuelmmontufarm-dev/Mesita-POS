@@ -297,18 +297,21 @@ $("btnBridge").addEventListener("click", async () => {
     const c = r.checks;
     scrim.innerHTML = `<div class="bpanel">
       <h2>🔌 Conexión con el Bridge</h2>
-      <div class="sub2">Esto es lo que el agente de Mesita Caja ve al conectarse a este POS.</div>
+      <div class="sub2">Esto es lo que Mesita Caja ve. Con la versión actual basta pulsar “Detectar POS automáticamente” en su asistente.</div>
       ${box(c.mysql ? "ok" : "bad", "MySQL del POS alcanzable", c.mysql ? `Conectado a ${r.conn.host}:${r.conn.port}` : "No responde — ¿está corriendo el MySQL en 3307?")}
       ${box(c.schema ? "ok" : "bad", "Esquema pos_contifico presente", c.schema ? "factura_cabecera, factura_detalle e inventario_producto existen." : "Faltan tablas — carga init/01-schema.sql")}
       ${box(c.readOnly ? "ok" : "bad", "Usuario mesita_ro SOLO lectura", c.readOnly ? "Un DELETE fue denegado — el Bridge no puede escribir jamás." : "¡El usuario puede escribir! Revisa los GRANT.")}
-      ${box(c.query ? "ok" : "bad", "Query del agente funciona", c.query ? `${r.precuentas.length} pre-cuenta(s) visibles ahora: ${r.precuentas.map((p) => `${p.mesa} (${money(Number(p.total))})`).join(", ") || "ninguna abierta"}` : "La query exacta del agente falló.")}
+      ${box(c.query ? "ok" : "bad", "Query del agente funciona", c.query ? `${r.precuentas.length} pre-cuenta(s) visibles ahora: ${r.precuentas.map((p) => `${p.mesa} (${money(Number(p.totalCents ?? p.total))})`).join(", ") || "ninguna abierta"}` : "La query exacta del agente falló.")}
       <div class="bconn">
-        <b style="font-size:.8rem">Datos para el asistente de Mesita Caja</b>
-        <div class="row2"><span>Host</span><code>${r.conn.host}</code></div>
-        <div class="row2"><span>Puerto</span><code>${r.conn.port}</code></div>
-        <div class="row2"><span>Base</span><code>${r.conn.database}</code></div>
-        <div class="row2"><span>Usuario</span><code>mesita_ro</code></div>
-        <div class="row2"><span>Clave</span><code>readonly</code></div>
+        <b style="font-size:.8rem">Todos los datos del asistente de Mesita Caja</b>
+        <div class="row2"><span>Launcher.exe.config</span><code>No aplica — es Mesita POS</code></div>
+        <div class="row2"><span>Host</span><code>${r.setup.mysql.host}</code></div>
+        <div class="row2"><span>Puerto</span><code>${r.setup.mysql.port}</code></div>
+        <div class="row2"><span>Base de datos</span><code>${r.setup.mysql.database}</code></div>
+        <div class="row2"><span>Usuario solo lectura</span><code>${r.setup.mysql.user}</code></div>
+        <div class="row2"><span>Clave solo lectura</span><code>${r.setup.mysql.password}</code></div>
+        <div class="row2"><span>Clave administrador</span><code>No se necesita — candado ya creado</code></div>
+        <div class="row2"><span>Token Bridge</span><code>Se genera una vez en el portal Mesita</code></div>
       </div>
     </div>`;
   } catch (e) {

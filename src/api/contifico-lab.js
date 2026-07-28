@@ -29,6 +29,27 @@ const crypto = require('crypto');
 
 const router = express.Router();
 
+const RO_USER = process.env.POS_SIM_RO_USER || 'mesita_ro';
+const RO_PASSWORD = process.env.POS_SIM_RO_PASSWORD || 'readonly';
+const BRIDGE_SETUP_VERSION = 1;
+const BRIDGE_PROVIDER = 'MESITA_POS_CONTIFICO_COMPAT';
+
+// Debe permanecer en paridad con apps/mesita-caja/src/config.js. La Caja
+// actual lee toda PRE F/P salvo ventas de mostrador; el tag MESITA_TABLE ya no
+// es obligatorio porque el servidor resuelve nombres como "Mesa 4".
+const BRIDGE_OPEN_ORDERS_QUERY =
+  "SELECT c.idfactura_cabecera AS localId, SUBSTRING_INDEX(c.descripcion,'MESITA_TABLE:',-1) AS mesa, c.estado AS estado, c.secuencia AS posDocumento, c.codigo_unico AS posToken, c.total AS totalCents, (c.tarifa_iva0 + c.tarifa_iva) AS subtotalCents, c.total_iva AS ivaCents, c.servicio AS servicioCents FROM factura_cabecera c WHERE c.estado = 'P' AND c.tipo = 'F' AND (c.descripcion IS NULL OR c.descripcion NOT LIKE 'VENTA DESDE PUNTO DE VENTA%')";
+
+function bridgeSetup(conn) {
+  return {
+    version: BRIDGE_SETUP_VERSION,
+    provider: BRIDGE_PROVIDER,
+    launcherRequired: false,
+    readonlyAlreadyProvisioned: true,
+    mysql: { ...conn, user: RO_USER, password: RO_PASSWORD },
+  };
+}
+
 // El pool se crea perezoso para que el require no explote si mysql2 no está.
 let pool = null;
 function db() {
@@ -215,17 +236,15 @@ router.get('/bridge-check', async (_req, res, next) => {
   try {
     // eslint-disable-next-line global-require
     const mysql = require('mysql2/promise');
-    ro = await mysql.createConnection({ ...conn, user: 'mesita_ro', password: 'readonly' });
+    ro = await mysql.createConnection({ ...conn, user: RO_USER, password: RO_PASSWORD });
     checks.mysql = true;
 
     const [tables] = await ro.query('SHOW TABLES');
     const names = tables.map((t) => Object.values(t)[0]);
     checks.schema = ['factura_cabecera', 'factura_detalle', 'inventario_producto'].every((t) => names.includes(t));
 
-    // La query EXACTA del agente (BRIDGE_FINDINGS §3)
-    const [rows] = await ro.query(
-      "SELECT SUBSTRING_INDEX(c.descripcion,'MESITA_TABLE:',-1) AS mesa, c.secuencia, c.total FROM factura_cabecera c WHERE c.estado='P' AND c.tipo='F' AND c.descripcion LIKE 'MESITA_TABLE:%'",
-    );
+    // La query EXACTA del agente vigente (Caja QUERY_REVISION=3).
+    const [rows] = await ro.query(BRIDGE_OPEN_ORDERS_QUERY);
     checks.query = true;
     precuentas = rows;
 
@@ -236,9 +255,22 @@ router.get('/bridge-check', async (_req, res, next) => {
     } catch (err) {
       checks.readOnly = /denied/i.test(String(err && err.message));
     }
-    res.json({ ok: true, checks, precuentas, conn });
+    res.json({
+      ok: true,
+      checks,
+      precuentas,
+      conn,
+      setup: bridgeSetup(conn),
+    });
   } catch (err) {
-    res.json({ ok: true, checks, precuentas, conn, error: String(err && err.message).slice(0, 200) });
+    res.json({
+      ok: true,
+      checks,
+      precuentas,
+      conn,
+      setup: bridgeSetup(conn),
+      error: String(err && err.message).slice(0, 200),
+    });
   } finally {
     if (ro) ro.end().catch(() => {});
   }
@@ -257,3 +289,5 @@ router.post('/anular', async (req, res, next) => {
 });
 
 module.exports = router;
+module.exports.BRIDGE_OPEN_ORDERS_QUERY = BRIDGE_OPEN_ORDERS_QUERY;
+module.exports.bridgeSetup = bridgeSetup;

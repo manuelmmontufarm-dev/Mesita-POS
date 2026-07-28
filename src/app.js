@@ -189,7 +189,10 @@ async function start() {
       if (process.env.CONTIFICO_LAB !== '1') throw err;
       logger.warn(`BD de plataforma no disponible — Contífico Lab sigue sin Prisma: ${err.message}`);
     }
-    app.listen(PORT, '0.0.0.0', () => {
+    // El Lab revela una credencial read-only local para que Mesita Caja se
+    // autoconfigure. En modo Lab jamás debe quedar visible a la red del local.
+    const listenHost = process.env.CONTIFICO_LAB === '1' ? '127.0.0.1' : '0.0.0.0';
+    app.listen(PORT, listenHost, () => {
       logger.info(`POS Mesita Demo running on port ${PORT}`);
       logger.info(`Swagger UI: http://localhost:${PORT}/sistema/api/v1/docs`);
       logger.info(`Dashboard:  http://localhost:${PORT}/index.html`);

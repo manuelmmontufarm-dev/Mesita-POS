@@ -44,6 +44,12 @@ Formato de cada entrada:
 
 ## 🗂️ Registro de cambios (lo más nuevo primero)
 
+### 2026-07-27 — Verificar Bridge entrega el contrato completo y solo por loopback
+
+- **Qué:** `src/api/contifico-lab.js`, `public/contifico-lab.html`, `src/app.js` y `tests/contifico-lab-bridge.test.js`.
+- **Por qué:** Mesita Caja pedía datos que el POS Lab mostraba a mano, la verificación usaba una query vieja que todavía exigía `MESITA_TABLE:`, y el servidor del Lab escuchaba en toda la red local.
+- **Qué hace:** `/lab/bridge-check` entrega un contrato versionado con host/puerto/base/usuario/clave read-only, declara que Launcher/root no aplican, verifica la query vigente de Caja y mantiene el token en el portal Mesita. El Lab ahora escucha solo en `127.0.0.1`; la prueba confirma contrato, candado y paridad de query.
+
 ### 2026-07-27 — La app de escritorio tiene el logo del POS
 
 - **Qué:** `desktop/icon.png` (1024px, renderizado del `public/logo.svg` — plato + cubiertos sobre azul Contífico, vía `qlmanage`) + `mac.icon` en `desktop/builder.yml`; electron-builder genera el `.icns`.
