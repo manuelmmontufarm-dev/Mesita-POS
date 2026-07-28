@@ -7,9 +7,9 @@
  * como lo hace el Contífico real, según lo verificado en la instalación viva
  * (mesita-app/docs/BRIDGE_FINDINGS.md §2–§6):
  *
- *  - Pre-cuenta = fila en `factura_cabecera` con tipo='F' + estado='P' y la
- *    mesa como tag `MESITA_TABLE:<code>` en `descripcion`. Se escribe a MySQL
- *    recién cuando el mesero CONFIRMA la pre-cuenta (§2) — igual aquí.
+ *  - Pre-cuenta = fila en `factura_cabecera` con tipo='F' + estado='P'; el
+ *    nombre que Contífico muestra para la mesa vive directamente en
+ *    `descripcion`. Se escribe a MySQL cuando el mesero CONFIRMA (§2).
  *  - Montos en DÓLARES decimales: subtotal + IVA 15% + servicio 10% (§4).
  *  - Facturar = UPDATE local instantáneo P→C + documento + autorizacion(49) +
  *    fila en forma_pagos + tipo_sincro='C' (§5). El drop del snapshot es la
@@ -84,7 +84,7 @@ function launcherConfig(conn) {
 // actual lee toda PRE F/P salvo ventas de mostrador; el tag MESITA_TABLE ya no
 // es obligatorio porque el servidor resuelve nombres como "Mesa 4".
 const BRIDGE_OPEN_ORDERS_QUERY =
-  "SELECT c.idfactura_cabecera AS localId, SUBSTRING_INDEX(c.descripcion,'MESITA_TABLE:',-1) AS mesa, c.estado AS estado, c.secuencia AS posDocumento, c.codigo_unico AS posToken, c.total AS totalCents, (c.tarifa_iva0 + c.tarifa_iva) AS subtotalCents, c.total_iva AS ivaCents, c.servicio AS servicioCents FROM factura_cabecera c WHERE c.estado = 'P' AND c.tipo = 'F' AND (c.descripcion IS NULL OR c.descripcion NOT LIKE 'VENTA DESDE PUNTO DE VENTA%')";
+  "SELECT c.idfactura_cabecera AS localId, c.descripcion AS mesa, c.estado AS estado, c.secuencia AS posDocumento, c.codigo_unico AS posToken, c.total AS totalCents, (c.tarifa_iva0 + c.tarifa_iva) AS subtotalCents, c.total_iva AS ivaCents, c.servicio AS servicioCents FROM factura_cabecera c WHERE c.estado = 'P' AND c.tipo = 'F' AND (c.descripcion IS NULL OR c.descripcion NOT LIKE 'VENTA DESDE PUNTO DE VENTA%')";
 
 function bridgeSetup(conn) {
   return {
@@ -136,7 +136,7 @@ const productId = (nombre) => crypto.createHash('md5').update(nombre).digest('he
 async function cabeceraAbierta(conn, mesa) {
   const [rows] = await conn.query(
     "SELECT * FROM factura_cabecera WHERE estado='P' AND tipo='F' AND descripcion = ? LIMIT 1",
-    [`MESITA_TABLE:${mesa}`],
+    [mesa],
   );
   return rows[0] || null;
 }
@@ -163,7 +163,7 @@ router.get('/state', async (_req, res, next) => {
   try {
     const conn = db();
     const [cabs] = await conn.query(
-      "SELECT * FROM factura_cabecera WHERE estado='P' AND tipo='F' AND descripcion LIKE 'MESITA_TABLE:%' ORDER BY fecha",
+      "SELECT * FROM factura_cabecera WHERE estado='P' AND tipo='F' AND (descripcion IS NULL OR descripcion NOT LIKE 'VENTA DESDE PUNTO DE VENTA%') ORDER BY fecha",
     );
     const mesas = [];
     for (const c of cabs) {
@@ -172,7 +172,7 @@ router.get('/state', async (_req, res, next) => {
         [c.idfactura_cabecera],
       );
       mesas.push({
-        mesa: String(c.descripcion).replace('MESITA_TABLE:', ''),
+        mesa: String(c.descripcion || ''),
         secuencia: c.secuencia,
         total: Number(c.total),
         subtotal: Number(c.tarifa_iva0) + Number(c.tarifa_iva),
@@ -202,7 +202,7 @@ router.post('/precuenta', async (req, res, next) => {
     const secuencia = `PRE-${String(Math.floor(100000 + Math.random() * 900000))}`;
     await conn.query(
       "INSERT INTO factura_cabecera (idfactura_cabecera, tipo, estado, descripcion, secuencia, codigo_unico, tarifa_iva0, tarifa_iva, total_iva, servicio, total, tipo_sincro) VALUES (?, 'F', 'P', ?, ?, NULL, 0, 0, 0, 0, 0, 'P')",
-      [id, `MESITA_TABLE:${mesa}`, secuencia],
+      [id, mesa, secuencia],
     );
     res.json({ ok: true, secuencia });
   } catch (err) { next(err); }

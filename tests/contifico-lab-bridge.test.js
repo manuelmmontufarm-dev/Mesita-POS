@@ -60,6 +60,8 @@ describe('GET /lab/bridge-check', () => {
     expect(mockQuery).toHaveBeenCalledWith(BRIDGE_OPEN_ORDERS_QUERY);
     expect(BRIDGE_OPEN_ORDERS_QUERY).toContain("c.descripcion IS NULL OR c.descripcion NOT LIKE 'VENTA DESDE PUNTO DE VENTA%'");
     expect(BRIDGE_OPEN_ORDERS_QUERY).not.toContain("c.descripcion LIKE 'MESITA_TABLE:%'");
+    expect(BRIDGE_OPEN_ORDERS_QUERY).toContain('c.descripcion AS mesa');
+    expect(BRIDGE_OPEN_ORDERS_QUERY).not.toContain('SUBSTRING_INDEX');
   });
 
   test('descarga un Launcher.exe.config compatible y de solo lectura', async () => {

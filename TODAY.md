@@ -223,3 +223,7 @@ Formato de cada entrada:
 
 > Para el detalle técnico de cada commit: `git log` o la pestaña de commits en GitHub.
 > Para el estado de infraestructura (URLs, variables, tablas): `docs/production-handoff.md`.
+### 2026-07-27 — Pre-cuentas Contífico sin marcas privadas de Mesita
+- **Qué:** POS Lab guarda `Mesa N` directamente en `factura_cabecera.descripcion` y sus lecturas usan `descripcion AS mesa`; se quitó el requisito histórico `MESITA_TABLE:`.
+- **Por qué:** la prueba debe demostrar compatibilidad con el esquema/comportamiento de Contífico, no con una etiqueta inventada para el laboratorio.
+- **Qué hace:** las pre-cuentas existentes fueron normalizadas y las futuras se crean como filas F/P estándar; Mesita Caja las detecta con la misma consulta de solo lectura que se usa en restaurante.
