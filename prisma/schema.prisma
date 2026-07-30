@@ -90,6 +90,11 @@ model Documento {
   estado           String           @default("P")  // P | C | A | F
   electronico      Boolean          @default(true)
   descripcion      String?
+  // Contifico free-text fields. adicional1 carries the frozen table mapping
+  // MESITA_TABLE:<mesaId> unless MESITA_TABLE_FIELD selects another field.
+  referencia       String?
+  adicional1       String?
+  adicional2       String?
 
   // Tax totals (Ecuador 15% IVA)
   subtotal0        Decimal          @db.Decimal(10, 2) @default(0)

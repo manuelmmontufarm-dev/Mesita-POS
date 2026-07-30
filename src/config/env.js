@@ -49,10 +49,29 @@ const env = {
   // App base URL (used for QR callback URLs)
   APP_BASE_URL: process.env.APP_BASE_URL || 'http://localhost:3000',
 
+  // Mesita POS write-through pilot. Mesita-app is the only service allowed to
+  // hold Contifico credentials; this application acts strictly as a BFF.
+  POS_PILOT_ENABLED: process.env.POS_PILOT_ENABLED === 'true',
+  MESITA_APP_GATEWAY_URL:
+    process.env.MESITA_APP_GATEWAY_URL ||
+    (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:3000'),
+  POS_PILOT_GATEWAY_TIMEOUT_MS: boundedInt(
+    process.env.POS_PILOT_GATEWAY_TIMEOUT_MS,
+    180_000,
+    1_000,
+    300_000
+  ),
+  POS_PILOT_ALLOWED_ORIGINS: String(process.env.POS_PILOT_ALLOWED_ORIGINS || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean),
+
   // When true in production, skip runtime DDL/tenant bootstrap (done via seed/deploy).
   PLATFORM_BOOTSTRAPPED: process.env.PLATFORM_BOOTSTRAPPED === '1'
     || process.env.PLATFORM_BOOTSTRAPPED === 'true',
 };
+
+env.POS_PILOT_CONFIG_ERROR = validatePosPilotConfig(env);
 
 // Validate required fields in production (warn only — routes return 503 if DB missing)
 if (env.NODE_ENV === 'production') {
@@ -61,6 +80,39 @@ if (env.NODE_ENV === 'production') {
   if (missing.length > 0) {
     console.error(`[env] Missing recommended environment variables: ${missing.join(', ')}`);
   }
+  if (env.POS_PILOT_ENABLED && env.POS_PILOT_CONFIG_ERROR) {
+    console.error(`[env] POS pilot disabled by invalid configuration: ${env.POS_PILOT_CONFIG_ERROR}`);
+  }
+}
+
+function boundedInt(value, fallback, min, max) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(Math.max(parsed, min), max);
+}
+
+function validatePosPilotConfig(config) {
+  if (!config.POS_PILOT_ENABLED) return null;
+  if (!config.MESITA_APP_GATEWAY_URL) return 'MESITA_APP_GATEWAY_URL is required.';
+
+  try {
+    const url = new URL(config.MESITA_APP_GATEWAY_URL);
+    if (!['http:', 'https:'].includes(url.protocol)) {
+      return 'MESITA_APP_GATEWAY_URL must use http or https.';
+    }
+    if (url.username || url.password || url.search || url.hash || !['', '/'].includes(url.pathname)) {
+      return 'MESITA_APP_GATEWAY_URL must be an origin without credentials, a path, query parameters, or a fragment.';
+    }
+    const isLocal = ['localhost', '127.0.0.1', '::1'].includes(url.hostname);
+    if (config.NODE_ENV === 'production' && url.protocol !== 'https:' && !isLocal) {
+      return 'MESITA_APP_GATEWAY_URL must use https in production.';
+    }
+  } catch (_) {
+    return 'MESITA_APP_GATEWAY_URL must be an absolute URL.';
+  }
+
+  return null;
 }
 
 module.exports = env;
+module.exports.validatePosPilotConfig = validatePosPilotConfig;

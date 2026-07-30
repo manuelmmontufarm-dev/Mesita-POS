@@ -4,6 +4,8 @@ node_modules/
 coverage/
 dist/
 *.log
+.playwright-cli/
+output/playwright/
 
 # Prisma
 prisma/migrations/*.sql.bak

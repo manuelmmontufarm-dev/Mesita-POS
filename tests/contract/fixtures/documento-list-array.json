@@ -1,0 +1,61 @@
+[
+  {
+    "id": "DOC0000000000001",
+    "pos": "3f2a9c1e-5b7d-4e8a-9c6f-0d1e2f3a4b5c",
+    "fecha_emision": "01/07/2026",
+    "tipo_documento": "PRE",
+    "documento": "001-001-000000042",
+    "estado": "P",
+    "descripcion": "PRE MESA 12",
+    "adicional1": "MESITA_TABLE:MESA-12",
+    "adicional2": "",
+    "subtotal_0": 0,
+    "subtotal_12": "18.26",
+    "iva": "2.74",
+    "servicio": "2.00",
+    "total": "23.00",
+    "detalles": [
+      {
+        "producto_id": "PROD00000000001",
+        "producto_nombre": "Encebollado",
+        "cantidad": "2.000000",
+        "precio": "6.500000",
+        "porcentaje_iva": 15
+      },
+      {
+        "producto_id": "PROD00000000002",
+        "producto_nombre": "Jugo de naranja",
+        "cantidad": "2.000000",
+        "precio": "2.630000",
+        "porcentaje_iva": 15
+      }
+    ],
+    "cobros": []
+  },
+  {
+    "id": "DOC0000000000004",
+    "pos": "3f2a9c1e-5b7d-4e8a-9c6f-0d1e2f3a4b5c",
+    "fecha_emision": "01/07/2026",
+    "tipo_documento": "PRE",
+    "documento": "001-001-000000043",
+    "estado": "E",
+    "descripcion": "PRE MESA 7",
+    "adicional1": "MESITA_TABLE:MESA-7",
+    "adicional2": "",
+    "subtotal_0": 0,
+    "subtotal_12": "4.00",
+    "iva": "0.60",
+    "servicio": 0,
+    "total": "4.60",
+    "detalles": [
+      {
+        "producto_id": "PROD00000000004",
+        "producto_nombre": "Café",
+        "cantidad": "2.000000",
+        "precio": "2.000000",
+        "porcentaje_iva": 15
+      }
+    ],
+    "cobros": []
+  }
+]

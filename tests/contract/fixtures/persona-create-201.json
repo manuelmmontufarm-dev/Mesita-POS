@@ -1,0 +1,11 @@
+{
+  "id": "PER0000000000002",
+  "tipo": "N",
+  "cedula": "0912345678",
+  "ruc": "",
+  "razon_social": "Guest Example",
+  "email": "guest@example.com",
+  "es_cliente": true,
+  "es_proveedor": false,
+  "es_extranjero": false
+}

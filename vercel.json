@@ -3,9 +3,41 @@
   "installCommand": "npm install",
   "buildCommand": "npx prisma generate",
   "rewrites": [
+    { "source": "/api/pos-pilot/:path*", "destination": "/api" },
     { "source": "/sistema/:path*", "destination": "/api" }
   ],
   "headers": [
+    {
+      "source": "/pos-pilot/:path*",
+      "headers": [
+        { "key": "Referrer-Policy", "value": "no-referrer" },
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'" }
+      ]
+    },
+    {
+      "source": "/pos-pilot",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store" }
+      ]
+    },
+    {
+      "source": "/pos-pilot/",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store" }
+      ]
+    },
+    {
+      "source": "/pos-pilot/assets/:file*",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    },
+    {
+      "source": "/pos-pilot/index.html",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store" }
+      ]
+    },
     {
       "source": "/pos-v2/dist/:file*",
       "headers": [
@@ -51,7 +83,7 @@
   ],
   "functions": {
     "api/index.js": {
-      "maxDuration": 60
+      "maxDuration": 300
     }
   }
 }

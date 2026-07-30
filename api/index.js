@@ -11,4 +11,4 @@ const handler = serverless(app, {
 });
 
 module.exports = handler;
-module.exports.config = { maxDuration: 60 };
+module.exports.config = { maxDuration: 300 };

@@ -1,0 +1,93 @@
+{
+  "count": 3,
+  "results": [
+    {
+      "id": "DOC0000000000001",
+      "pos": "3f2a9c1e-5b7d-4e8a-9c6f-0d1e2f3a4b5c",
+      "fecha_emision": "01/07/2026",
+      "tipo_documento": "PRE",
+      "documento": "001-001-000000042",
+      "estado": "P",
+      "descripcion": "PRE MESA 12",
+      "adicional1": "MESITA_TABLE:MESA-12",
+      "adicional2": "",
+      "subtotal_0": 0,
+      "subtotal_12": "18.26",
+      "iva": "2.74",
+      "servicio": "2.00",
+      "total": "23.00",
+      "detalles": [
+        {
+          "producto_id": "PROD00000000001",
+          "producto_nombre": "Encebollado",
+          "cantidad": "2.000000",
+          "precio": "6.500000",
+          "porcentaje_iva": 15
+        },
+        {
+          "producto_id": "PROD00000000002",
+          "producto_nombre": "Jugo de naranja",
+          "cantidad": "2.000000",
+          "precio": "2.630000",
+          "porcentaje_iva": 15
+        }
+      ],
+      "cobros": []
+    },
+    {
+      "id": "DOC0000000000002",
+      "pos": "3f2a9c1e-5b7d-4e8a-9c6f-0d1e2f3a4b5c",
+      "fecha_emision": "01/07/2026",
+      "tipo_documento": "PRE",
+      "documento": "001-001-000000041",
+      "estado": "C",
+      "descripcion": "PRE MESA 3",
+      "adicional1": "MESITA_TABLE:MESA-3",
+      "adicional2": "",
+      "subtotal_0": 0,
+      "subtotal_12": "10.00",
+      "iva": "1.50",
+      "servicio": "1.00",
+      "total": "12.50",
+      "detalles": [
+        {
+          "producto_id": "PROD00000000003",
+          "producto_nombre": "Almuerzo del día",
+          "cantidad": "1.000000",
+          "precio": "10.000000",
+          "porcentaje_iva": 15
+        }
+      ],
+      "cobros": [
+        {
+          "id": "COB0000000000001",
+          "forma_cobro": "TC",
+          "monto": "12.50",
+          "fecha": "01/07/2026",
+          "tipo_ping": "D",
+          "lote": "A1B2C3D4E5F6",
+          "numero_comprobante": "MSTA1A2B3C4D5E6",
+          "monto_propina": 0
+        }
+      ]
+    },
+    {
+      "id": "DOC0000000000003",
+      "pos": null,
+      "fecha_emision": "01/07/2026",
+      "tipo_documento": "FAC",
+      "documento": "001-001-000000040",
+      "estado": "F",
+      "descripcion": "Factura manual",
+      "adicional1": "",
+      "adicional2": "",
+      "subtotal_0": 0,
+      "subtotal_12": "5.00",
+      "iva": "0.75",
+      "servicio": 0,
+      "total": "5.75",
+      "detalles": [],
+      "cobros": []
+    }
+  ]
+}

@@ -36,8 +36,8 @@ Formato de cada entrada:
 ## 🟢 En qué estamos ahora
 
 - **Estado general:** POS + guest app en Vercel (`mesita-pos.vercel.app`, `mesitademo-two.vercel.app`).
-- **Última área trabajada:** carga inicial — JSX precompilado (sin Babel en el navegador) + pantalla de arranque con marca (rama `polish-loading`, pendiente de merge por Manuel).
-- **Pendiente / próximos pasos:** Manuel revisa el preview de `polish-loading` y decide el merge; después de editar cualquier `.jsx` correr `npm run build:pos-v2` y commitear `dist/`.
+- **Última área trabajada:** piloto write-through — BFF seguro hacia Mesita-app y simulador contractual Contífico v2 en la rama aislada `codex/mesita-pos-write-through-pilot`.
+- **Pendiente / próximos pasos:** conectar el piloto a las variables/feature flags de sandbox, ejecutar las migraciones y certificar las operaciones contra Contífico antes de habilitar restaurantes.
 - **Cosas a tener cuidado:** mesas 1–4 arrancan vacías en guest — ítems vienen del POS. El cierre remoto se detecta en el poll (`refreshMesaSession`).
 
 ---
@@ -93,6 +93,11 @@ Formato de cada entrada:
 - **Qué:** nuevo `src/api/contifico-lab.js` (router Express, gateado por `CONTIFICO_LAB=1`, montado antes del rate-limiter), nueva UI `public/contifico-lab.html` (mesero: grid de 8 mesas + 12 platos con botones de tap rápido + Pre-Cuenta/FACTURAR/Anular), `src/app.js` (montaje + en modo lab tolera arrancar sin `DATABASE_URL`), dep `mysql2`.
 - **Por qué:** para hacer pruebas REALISTAS del flujo Bridge de Mesita en una compu de desarrollo: el mesero "juega" en este POS y Mesita solo puede enterarse por el camino real (el agente Bridge leyendo el MySQL con `mesita_ro`, GRANT SELECT). Sin atajos ni conexiones directas POS→widget. El comportamiento replica lo VERIFICADO en la instalación real de Contífico (mesita-app/docs/BRIDGE_FINDINGS.md §2–§6).
 - **Qué hace:** cada botón escribe en `pos_contifico` (127.0.0.1:3307, ver mesita-app/scripts/bridge/pos-simulator/) exactamente como el POS de escritorio: Pre-Cuenta = INSERT `factura_cabecera` `tipo='F' estado='P'` con tag `MESITA_TABLE:<mesa>` en `descripcion`; platos = `factura_detalle` + upsert `inventario_producto` + recálculo subtotal/IVA 15%/servicio 10%; **FACTURAR = UPDATE local instantáneo P→C** + `documento` + `autorizacion` (49 dígitos) + fila `forma_pagos` TC + `tipo_sincro='C'` — con lo que el doc **desaparece de la query del Bridge** (la señal de cierre real). Verificado E2E: pre-cuenta visible vía `mesita_ro` → facturar → drop del snapshot + documento `001-002-000000001` + `forma_pagos TC $17.25`. Correr: `CONTIFICO_LAB=1 PORT=4090 node src/app.js` → `http://localhost:4090/contifico-lab.html`. NUNCA activo en Railway (flag env).
+### 2026-07-21 — Piloto POS write-through completo en rama aislada
+
+- **Qué:** nuevo cliente desktop en `client/pos-pilot/` y bundle versionado en `public/pos-pilot/`; BFF en `src/api/posPilot/`, cliente de gateway, configuración/serving/variables/Vercel, fachada `src/api/v2/`, campos y migración de referencia Contífico, fixtures contractuales y runner Jest aislado.
+- **Por qué:** restaurantes necesitan una consola clara de piso/órdenes/cobro sin exponer credenciales Contífico ni depender de estados fiscales simulados; además las suites legacy compartían singletons/mocks incompatibles al correr juntas.
+- **Qué hace:** agrega mapa por zonas, orden con autosave/guardado inmediato, pagos bloqueados cuando la PRE no está sincronizada, historial e impresión factual; intercambia tickets SSO de un uso por cookie HttpOnly, retransmite únicamente rutas aprobadas a Mesita-app, falla cerrado por feature flag/configuración y simula catálogo/PRE/PUT/cobros/personas con autenticación raw-key. La recuperación de pagos conserva el intent original y solo muestra acciones autorizadas por el gateway, incluso tras un lease vencido. Verificado con 7 suites/96 tests de servidor, 14 tests del cliente, TypeScript, Prisma, build de producción y 10/10 flujos desktop E2E.
 
 ### 2026-07-06 — POS: botón Añadir mesa visible + cache-bust en deploy
 
