@@ -16,6 +16,7 @@
   "iva": "1.50",
   "servicio": "1.00",
   "total": "12.50",
+  "saldo": "0.00",
   "cliente": {
     "cedula": "0912345678",
     "ruc": "",

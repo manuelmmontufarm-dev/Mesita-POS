@@ -14,6 +14,7 @@
     "iva": "2.74",
     "servicio": "2.00",
     "total": "23.00",
+    "saldo": "23.00",
     "detalles": [
       {
         "producto_id": "PROD00000000001",
@@ -47,6 +48,7 @@
     "iva": "0.60",
     "servicio": 0,
     "total": "4.60",
+    "saldo": "4.60",
     "detalles": [
       {
         "producto_id": "PROD00000000004",

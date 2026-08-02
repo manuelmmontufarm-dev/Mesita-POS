@@ -1,12 +1,20 @@
 'use strict';
 
 /**
- * v2 Documento routes — strict façade over the frozen Contífico contract.
+ * v2 Documento routes — faithful façade over the frozen Contífico contract.
  *
- * Strictness note: where the real API's behavior is unverified (unknown
- * params, undocumented status codes), this façade takes the STRICT side and
- * returns 400 — so drift in the app client is caught by contract tests here
- * instead of surfacing against real Contífico in production.
+ * Fidelity rule: wherever the real API's behavior is SANDBOX-VERIFIED, this
+ * façade reproduces it exactly — including the inconvenient parts (`tipo=`
+ * → 406, cash cobros losing their reference, undocumented params silently
+ * ignored). A simulator that is stricter than production turns green on
+ * requests that production rejects, and vice versa; either way the test
+ * stops being evidence.
+ *
+ * Where behavior is genuinely UNVERIFIED (documented in the contract's
+ * "Still UNVERIFIED" list), the façade takes the strict side and returns 400,
+ * so client drift surfaces here instead of in production. Those spots are
+ * marked UNVERIFIED inline and must be re-checked against a real sandbox
+ * before anyone treats them as parity.
  */
 
 const express = require('express');
@@ -20,17 +28,11 @@ const { serializeDocumento, serializeCobro } = require('./serializers');
 const DOC_INCLUDE = { cobros: true, detallesDoc: true, persona: true };
 const OPEN_ESTADOS = ['P', 'E'];
 const CLOSED_ESTADOS = ['C', 'G', 'A', 'F'];
-const COBRO_ALLOWED_KEYS = new Set([
-  'forma_cobro',
-  'monto',
-  'fecha',
-  'tipo_ping',
-  'numero_comprobante',
-  'numero_cheque',
-  'cuenta_bancaria_id',
-]);
 const TIPO_PING_VALUES = new Set(['D', 'M', 'E', 'P', 'A']);
 const DOCUMENT_TEXT_MAX = 300;
+// SANDBOX-VERIFIED (contract O2): result_size is accepted but ignored — the
+// real API always returns 100 rows per page.
+const PAGE_SIZE = 100;
 
 function validationError(res, errores) {
   return res.status(400).json({ mensaje: 'Error de validación', errores });
@@ -148,22 +150,46 @@ async function productNamesFor(docs) {
   }
 }
 
-// GET /documento/?tipo=PRE&result_size&result_page  (documented list query)
+/** Absolute page URL for the list envelope's next/previous links. */
+function pageUrl(req, page) {
+  const url = new URL(
+    `${req.baseUrl}${req.path}`,
+    `${req.protocol}://${req.get('host') || 'localhost'}`
+  );
+  for (const [key, value] of Object.entries(req.query)) {
+    if (key !== 'result_page') url.searchParams.append(key, String(value));
+  }
+  url.searchParams.set('result_page', String(page));
+  return url.toString();
+}
+
+// GET /documento/?result_page  (documented list query)
+//
+// SANDBOX-VERIFIED 2026-07-06 (contract O2) — all three behaviors below were
+// observed on the real "integración API" account and are reproduced verbatim:
+//   - `tipo=` is REJECTED with HTTP 406. The app must never send it.
+//   - `tipo_documento=` is accepted but IGNORED; there is no server-side type
+//     filtering of any kind. Filtering PRE/open is the client's job.
+//   - `result_size` is accepted but IGNORED (fixed 100 rows/page).
+// Ordering is newest-first, so open PREs surface on page 1.
 router.get(
   '/',
   asyncHandler(async (req, res) => {
-    const opts = {
-      // documented param is `tipo` — v1's `tipo_documento` is intentionally
-      // NOT honored here (unknown params are ignored, Contífico-style)
-      tipo_documento: req.query.tipo || undefined,
-      result_size: req.query.result_size,
-      result_page: req.query.result_page,
-    };
-    const { count, results } = await documentoService.listarDocumentos(opts);
+    if (req.query.tipo !== undefined) {
+      return res.status(406).json({ detail: 'Parámetro `tipo` no aceptable.' });
+    }
+
+    const page = Math.max(1, parseInt(req.query.result_page, 10) || 1);
+    const { count, results } = await documentoService.listarDocumentos({
+      result_size: PAGE_SIZE,
+      result_page: page,
+    });
     const names = await productNamesFor(results);
     const stale = Boolean(req.v2StaleRead);
-    res.json({
+    return res.json({
       count,
+      next: page * PAGE_SIZE < count ? pageUrl(req, page + 1) : null,
+      previous: page > 1 ? pageUrl(req, page - 1) : null,
       results: results.map((doc) => serializeDocumento(doc, names, { stale })),
     });
   })
@@ -285,11 +311,10 @@ router.post(
     const body = req.body || {};
     const errores = [];
 
-    for (const key of Object.keys(body)) {
-      if (!COBRO_ALLOWED_KEYS.has(key)) {
-        errores.push({ campo: key, detalle: 'Parámetro no documentado.' });
-      }
-    }
+    // Undocumented body params are IGNORED, not rejected — Contífico-style.
+    // SANDBOX-VERIFIED (contract O7): POSTing a cobro with an extra `pos` in
+    // the body returns 201. A 400 here would be stricter than the real API and
+    // would fail requests that production accepts.
     if (!body.forma_cobro || String(body.forma_cobro).length > 10) {
       errores.push({ campo: 'forma_cobro', detalle: 'Requerido (máx. 10).' });
     }
@@ -339,7 +364,12 @@ router.post(
         propina: 0,
         procesador: body.tipo_ping ? String(body.tipo_ping) : null,
         detalle: null,
-        referencia: body.numero_comprobante ? String(body.numero_comprobante) : null,
+        // SANDBOX-VERIFIED (contract O7): cash cobros lose the client's
+        // reference — the server stores the literal "Efectivo" instead.
+        referencia:
+          String(body.forma_cobro) === 'EF'
+            ? 'Efectivo'
+            : (body.numero_comprobante ? String(body.numero_comprobante) : null),
       },
     });
 
