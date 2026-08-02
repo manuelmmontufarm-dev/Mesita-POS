@@ -44,6 +44,16 @@ Formato de cada entrada:
 
 ## 🗂️ Registro de cambios (lo más nuevo primero)
 
+### 2026-07-30 — La fachada v2 ahora imita a Contífico exactamente (4 divergencias)
+- **Qué:** `src/api/v2/serializers.js`, `src/api/v2/documento.js`, `tests/v2-facade.test.js` (26 → 31 tests) y los fixtures de `tests/contract/fixtures/` sincronizados desde mesita-app.
+- **Por qué:** el simulador se apartaba en 4 puntos de lo que el contrato congelado marca como SANDBOX-VERIFIED contra la cuenta real. Dos de esos puntos hacían que una prueba pasara en verde donde la realidad falla — el peor error posible en un simulador, porque convierte la prueba en evidencia falsa.
+- **Qué hace:**
+  1. **`saldo`** — el documento ahora expone el saldo vivo (`total − Σ cobros`, en centavos enteros), que es la señal con la que se sabe que una cuenta quedó saldada. Antes no se emitía nunca. Una lectura `stale` reporta el saldo anterior al cobro, coherente con el resto del perfil.
+  2. **Cobros en efectivo** — `EF` ahora pierde la referencia: el servidor guarda y devuelve el literal `"Efectivo"`, como el real. Antes el simulador devolvía la referencia de Mesita, con lo que la reconciliación por referencia parecía funcionar para efectivo — y en el restaurante no encuentra nada (camino al doble cobro). El adapter de la app ya lo manejaba bien; el que mentía era el simulador.
+  3. **Sobre de la lista** — `{count, next, previous, results}` completo con URLs de página; `tipo=` ahora responde **406** como el real (antes se aceptaba y filtraba); no hay filtrado de tipo del lado del servidor; `result_size` se acepta pero se ignora (100 filas fijas).
+  4. **Parámetros no documentados** en el POST de cobro se **ignoran** en vez de responder 400 — un simulador más estricto que producción rechaza pedidos que el real acepta.
+- **Ojo:** la fachada sigue tomando el lado estricto donde el contrato dice UNVERIFIED (el `PUT` responde 201, y se rechaza el sobrepago). Eso NO es paridad comprobada: hay que verificarlo contra la cuenta de La Ronda.
+
 ### 2026-07-27 — Guardar confirma la precuenta completa en MySQL
 - **Qué:** `public/contifico-lab.html`, `src/api/contifico-lab.js`, pruebas y versión desktop 1.1.0.
 - **Por qué:** los cambios por clic no tenían un punto de confirmación visible y el mesero no podía saber cuándo la información ya estaba disponible para el Bridge.

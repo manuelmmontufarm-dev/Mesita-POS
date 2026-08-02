@@ -287,11 +287,15 @@ describe('v2 auth parity', () => {
 // Documento list: envelope, PRE filtering, pagination, subtotal_12 (O2/O4/O9)
 // ---------------------------------------------------------------------------
 describe('v2 documento list', () => {
-  test('returns {count, results} envelope with official wire names', async () => {
+  test('returns the full {count, next, previous, results} envelope with official wire names', async () => {
     seedOpenPre();
-    const res = await request(app).get('/sistema/api/v2/documento/?tipo=PRE').set(RAW_AUTH);
+    const res = await request(app).get('/sistema/api/v2/documento/').set(RAW_AUTH);
     expect(res.status).toBe(200);
     expect(res.body.count).toBe(1);
+    // SANDBOX-VERIFIED envelope: next/previous are present (null at the edges),
+    // not absent — a client that paginates must find the keys.
+    expect(res.body).toHaveProperty('next', null);
+    expect(res.body).toHaveProperty('previous', null);
     const doc = res.body.results[0];
     expect(doc.subtotal_12).toBe(18.26); // internal subtotal15 → wire subtotal_12
     expect(doc).not.toHaveProperty('subtotal_15');
@@ -299,19 +303,35 @@ describe('v2 documento list', () => {
     expect(doc.total).toBe(23.0);
   });
 
-  test('tipo=PRE filters out FAC; result_size/result_page paginate', async () => {
+  test('tipo= is rejected with 406 — never sent by the app (SANDBOX-VERIFIED)', async () => {
+    seedOpenPre();
+    for (const value of ['PRE', 'FAC', '']) {
+      const res = await request(app)
+        .get(`/sistema/api/v2/documento/?tipo=${value}`)
+        .set(RAW_AUTH);
+      expect(res.status).toBe(406);
+    }
+  });
+
+  test('no server-side type filtering: FAC documents come back too', async () => {
     seedOpenPre({ id: 'pre-1' });
     seedOpenPre({ id: 'pre-2' });
     seedOpenPre({ id: 'fac-1', tipoDocumento: 'FAC', estado: 'F' });
 
-    const all = await request(app).get('/sistema/api/v2/documento/?tipo=PRE').set(RAW_AUTH);
-    expect(all.body.count).toBe(2);
-    expect(all.body.results.every((d) => d.tipo_documento === 'PRE')).toBe(true);
+    const all = await request(app).get('/sistema/api/v2/documento/').set(RAW_AUTH);
+    expect(all.body.count).toBe(3); // client-side filtering is the ONLY filter
+    expect(all.body.results.some((d) => d.tipo_documento === 'FAC')).toBe(true);
+  });
 
-    const page = await request(app)
-      .get('/sistema/api/v2/documento/?tipo=PRE&result_size=1&result_page=2')
+  test('result_size is accepted but ignored — the page is always 100 rows', async () => {
+    seedOpenPre({ id: 'pre-1' });
+    seedOpenPre({ id: 'pre-2' });
+
+    const res = await request(app)
+      .get('/sistema/api/v2/documento/?result_size=1')
       .set(RAW_AUTH);
-    expect(page.body.results).toHaveLength(1);
+    expect(res.body.results).toHaveLength(2); // not 1 — the param does nothing
+    expect(res.body.next).toBeNull();
   });
 
   test('ignores the v1 tipo_documento query param (unknown params ignored)', async () => {
@@ -501,14 +521,18 @@ describe('v2 cobros', () => {
     expect(res.body.tipo_ping).toBe('D');
   });
 
-  test('undocumented params (lote, descripcion) are rejected 400', async () => {
-    const doc = seedOpenPre();
-    for (const extra of [{ lote: 'ABC123' }, { descripcion: 'ref' }]) {
+  test('undocumented params (lote, descripcion, pos) are IGNORED, not rejected', async () => {
+    // SANDBOX-VERIFIED (O7): a cobro POST carrying an extra `pos` returns 201.
+    // Rejecting unknown params would make the simulator stricter than the API
+    // it stands in for, so requests that production accepts would fail here.
+    const doc = seedOpenPre({ total: 50 });
+    for (const extra of [{ lote: 'ABC123' }, { descripcion: 'ref' }, { pos: 'api-token' }]) {
       const res = await request(app)
         .post(`/sistema/api/v2/documento/${doc.id}/cobro/`)
         .set(RAW_AUTH)
         .send({ forma_cobro: 'EF', monto: 1, ...extra });
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(201);
+      expect(res.body).not.toHaveProperty('descripcion'); // ignored, not echoed
     }
   });
 
@@ -561,9 +585,14 @@ describe('v2 cobros', () => {
     expect(p3.status).toBe(400);
   });
 
-  test('duplicate retry semantics: a repeated partial cobro DUPLICATES (no upstream dedupe); reconciliation must use numero_comprobante', async () => {
+  test('duplicate retry semantics: a repeated TC cobro DUPLICATES (no upstream dedupe); reconciliation must use numero_comprobante', async () => {
     const doc = seedOpenPre({ total: 23.0 });
-    const body = { forma_cobro: 'EF', monto: 5.0, numero_comprobante: 'MSTA0RETRY00001' };
+    const body = {
+      forma_cobro: 'TC',
+      monto: 5.0,
+      tipo_ping: 'D',
+      numero_comprobante: 'MSTA0RETRY00001',
+    };
 
     const first = await request(app)
       .post(`/sistema/api/v2/documento/${doc.id}/cobro/`)
@@ -590,6 +619,77 @@ describe('v2 cobros', () => {
       .set(RAW_AUTH)
       .send({ forma_cobro: 'EF', monto: 23.0 });
     expect(over.status).toBe(400);
+  });
+
+  test('EF cobros LOSE the reference: the server overwrites numero_comprobante with "Efectivo"', async () => {
+    // SANDBOX-VERIFIED 2026-07-06 (O7). This is the single most dangerous
+    // divergence to get wrong: if the simulator echoed the reference back, the
+    // app's "I found my cobro, all good" path would pass every test here and
+    // then find nothing in the restaurant — the double-charge scenario.
+    const doc = seedOpenPre({ total: 23.0 });
+    const res = await request(app)
+      .post(`/sistema/api/v2/documento/${doc.id}/cobro/`)
+      .set(RAW_AUTH)
+      .send({ forma_cobro: 'EF', monto: 5.0, numero_comprobante: 'MSTA0CASH00001' });
+
+    expect(res.status).toBe(201);
+    expect(res.body.numero_comprobante).toBe('Efectivo');
+    expect(res.body.numero_comprobante).not.toBe('MSTA0CASH00001');
+    expect(res.body).not.toHaveProperty('lote'); // EF cobros carry no lote
+
+    // …and it stays lost on read-back, so reference reconciliation is
+    // impossible for cash. Absence is the only safe signal.
+    const list = await request(app)
+      .get(`/sistema/api/v2/documento/${doc.id}/cobro/`)
+      .set(RAW_AUTH);
+    expect(list.body.filter((c) => c.numero_comprobante === 'MSTA0CASH00001')).toHaveLength(0);
+    expect(list.body[0].numero_comprobante).toBe('Efectivo');
+  });
+
+  test('saldo decrements per cobro and reaches 0 when the PRE is fully paid', async () => {
+    // SANDBOX-VERIFIED (O3/O7): the live `saldo` is how the app knows a bill
+    // is settled. Omitting it made every saldo read undefined here and a
+    // number in production.
+    const doc = seedOpenPre({ total: 23.0 });
+
+    let read = await request(app).get(`/sistema/api/v2/documento/${doc.id}/`).set(RAW_AUTH);
+    expect(read.body.saldo).toBe(23.0); // untouched PRE: saldo === total
+
+    await request(app)
+      .post(`/sistema/api/v2/documento/${doc.id}/cobro/`)
+      .set(RAW_AUTH)
+      .send({ forma_cobro: 'EF', monto: 8.0 });
+    read = await request(app).get(`/sistema/api/v2/documento/${doc.id}/`).set(RAW_AUTH);
+    expect(read.body.saldo).toBe(15.0);
+    expect(read.body.estado).toBe('P'); // partial: still open
+
+    await request(app)
+      .post(`/sistema/api/v2/documento/${doc.id}/cobro/`)
+      .set(RAW_AUTH)
+      .send({ forma_cobro: 'EF', monto: 15.0 });
+    read = await request(app).get(`/sistema/api/v2/documento/${doc.id}/`).set(RAW_AUTH);
+    expect(read.body.saldo).toBe(0);
+    expect(read.body.estado).toBe('C');
+    expect(read.body.tipo_documento).toBe('PRE'); // no automatic PRE→FAC
+  });
+
+  test('a stale read reports the pre-cobro saldo, not the fresh one', async () => {
+    const doc = seedOpenPre({ total: 23.0 });
+    await request(app)
+      .post(`/sistema/api/v2/documento/${doc.id}/cobro/`)
+      .set(RAW_AUTH)
+      .send({ forma_cobro: 'EF', monto: 23.0 });
+
+    const fresh = await request(app).get(`/sistema/api/v2/documento/${doc.id}/`).set(RAW_AUTH);
+    expect(fresh.body.saldo).toBe(0);
+
+    const stale = await request(app)
+      .get(`/sistema/api/v2/documento/${doc.id}/`)
+      .set(RAW_AUTH)
+      .set('X-Fault-Profile', 'stale');
+    expect(stale.body.saldo).toBe(23.0); // snapshot has not seen the cobro
+    expect(stale.body.estado).toBe('P');
+    expect(stale.body.cobros).toHaveLength(0);
   });
 });
 

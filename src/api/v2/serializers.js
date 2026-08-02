@@ -31,7 +31,20 @@ function syntheticLote(cobro) {
   return String(digest.readUInt32BE(0) % 1_000_000).padStart(6, '0');
 }
 
+/**
+ * SANDBOX-VERIFIED 2026-07-06 (contract O7): on an `EF` cobro the server
+ * OVERWRITES whatever `numero_comprobante` the client sent with the literal
+ * "Efectivo". Reference reconciliation is therefore IMPOSSIBLE for cash, and
+ * the app must never blind-retry an EF cobro. Applied on read as well as on
+ * write so cobros created through the v1 POS UI report the same value.
+ */
+function numeroComprobante(cobro) {
+  if (cobro.formaCobro === 'EF') return 'Efectivo';
+  return cobro.referencia || undefined;
+}
+
 function serializeCobro(cobro) {
+  const comprobante = numeroComprobante(cobro);
   return {
     id: cobro.id,
     forma_cobro: cobro.formaCobro,
@@ -39,7 +52,7 @@ function serializeCobro(cobro) {
     fecha: ddmmyyyy(cobro.createdAt),
     ...(cobro.procesador ? { tipo_ping: cobro.procesador } : {}),
     ...(syntheticLote(cobro) !== undefined ? { lote: syntheticLote(cobro) } : {}),
-    ...(cobro.referencia ? { numero_comprobante: cobro.referencia } : {}),
+    ...(comprobante ? { numero_comprobante: comprobante } : {}),
     monto_propina: n(cobro.propina),
   };
 }
@@ -56,6 +69,16 @@ function serializeDocumento(doc, productNames = new Map(), opts = {}) {
   const stale = Boolean(opts.stale);
   const cobros = stale ? [] : (doc.cobros || []).map(serializeCobro);
   const estado = stale && (doc.estado === 'C' || doc.estado === 'F') ? 'P' : doc.estado;
+
+  // SANDBOX-VERIFIED (contract O3/O7): the document carries a live `saldo`
+  // that decrements with every cobro and reaches 0 when the PRE is fully
+  // paid. Computed in integer cents — never float arithmetic on money.
+  // A stale read hides the cobros, so it must report the pre-cobro saldo too.
+  const totalCents = Math.round(n(doc.total) * 100);
+  const paidCents = stale
+    ? 0
+    : (doc.cobros || []).reduce((sum, c) => sum + Math.round(n(c.monto) * 100), 0);
+  const saldo = Math.max(0, totalCents - paidCents) / 100;
 
   return {
     id: doc.id,
@@ -75,6 +98,7 @@ function serializeDocumento(doc, productNames = new Map(), opts = {}) {
     iva: n(doc.iva),
     servicio: n(doc.servicio),
     total: n(doc.total),
+    saldo,
     autorizacion: doc.autorizacionSRI || null,
     cliente: doc.clienteRazonSocial
       ? {

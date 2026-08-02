@@ -1,5 +1,7 @@
 {
   "count": 3,
+  "next": null,
+  "previous": null,
   "results": [
     {
       "id": "DOC0000000000001",
@@ -16,6 +18,7 @@
       "iva": "2.74",
       "servicio": "2.00",
       "total": "23.00",
+      "saldo": "23.00",
       "detalles": [
         {
           "producto_id": "PROD00000000001",
@@ -49,6 +52,7 @@
       "iva": "1.50",
       "servicio": "1.00",
       "total": "12.50",
+      "saldo": "0.00",
       "detalles": [
         {
           "producto_id": "PROD00000000003",
@@ -86,6 +90,7 @@
       "iva": "0.75",
       "servicio": 0,
       "total": "5.75",
+      "saldo": "5.75",
       "detalles": [],
       "cobros": []
     }
