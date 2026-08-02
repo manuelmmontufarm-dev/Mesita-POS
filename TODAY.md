@@ -36,13 +36,59 @@ Formato de cada entrada:
 ## 🟢 En qué estamos ahora
 
 - **Estado general:** POS + guest app en Vercel (`mesita-pos.vercel.app`, `mesitademo-two.vercel.app`).
-- **Última área trabajada:** piloto write-through — BFF seguro hacia Mesita-app y simulador contractual Contífico v2 en la rama aislada `codex/mesita-pos-write-through-pilot`.
-- **Pendiente / próximos pasos:** conectar el piloto a las variables/feature flags de sandbox, ejecutar las migraciones y certificar las operaciones contra Contífico antes de habilitar restaurantes.
-- **Cosas a tener cuidado:** mesas 1–4 arrancan vacías en guest — ítems vienen del POS. El cierre remoto se detecta en el poll (`refreshMesaSession`).
+- **Última área trabajada:** el Contífico Lab ahora pone la mesa en `adicional1` (era `descripcion`), y ese campo se ve y se edita en pantalla — paridad con los hallazgos del piloto CASA.
+- **Pendiente / próximos pasos:** conectar el piloto a las variables/feature flags de sandbox, ejecutar las migraciones y certificar contra Contífico las 3 conductas todavía UNVERIFIED (estado del PUT, regla de sobrepago, números-vs-strings en montos) antes de habilitar restaurantes. En el lab falta sembrar `parametro` (`adicionalPendiente=1`, `habilitarMapaMesas=0`) y `versioninfo`, que el agente lee best-effort para el heartbeat.
+- **Cosas a tener cuidado:** mesas 1–4 arrancan vacías en guest — ítems vienen del POS. El cierre remoto se detecta en el poll (`refreshMesaSession`). En el lab, `descripcion` es una CONSTANTE de venta: quien la vuelva a usar como mesa reintroduce el defecto crítico #2 del piloto.
 
 ---
 
 ## 🗂️ Registro de cambios (lo más nuevo primero)
+
+### 2026-08-02 — La mesa del Lab pasa a `adicional1`, visible y editable
+- **Qué:** `src/api/contifico-lab.js`, `public/contifico-lab.html`, nuevo
+  `src/services/mesaClassifier.js`, `tests/contifico-lab-bridge.test.js`, nuevo
+  `tests/mesa-classifier.test.js`. Aparte, en el MySQL del simulador:
+  `ALTER TABLE factura_cabecera ADD COLUMN mesa_relacionada INT NOT NULL DEFAULT 0`
+  y `descripcion` a `VARCHAR(800)`.
+- **Por qué:** verificando el lab contra las investigaciones del git de
+  mesita-app (`docs/PILOT_FINDINGS_CASA.md` §1/§4,
+  `docs/PILOT_HALLAZGOS_COMPLEMENTARIOS_CASA.md`, `docs/BRIDGE_FINDINGS.md`)
+  salieron cinco divergencias, y una ya rompía la pantalla: el lab escribía la
+  mesa en `descripcion` ("Mesa 1") y dejaba `adicional1` en NULL, mientras el
+  MySQL sembrado tenía los documentos en la forma real (`descripcion` =
+  "VENTA PUNTO DE VENTA", `adicional1` = "1"). Resultado medible: con 6
+  pre-cuentas abiertas, `/lab/state` devolvía las 6 con mesa
+  "VENTA PUNTO DE VENTA" y la pantalla mostraba las 8 mesas **Libres**.
+  Además la `bridge-check` corría la query vieja (revisión 3), que trae
+  `c.descripcion AS mesa` y filtra por descripción — los dos defectos críticos
+  que el piloto documentó.
+- **Qué hace:**
+  1. **La mesa vive en `adicional1`.** Abrir "Mesa 4" inserta `adicional1='4'`
+     (el número pelado, como lo teclea el mesero) y `descripcion` recibe la
+     constante de venta del POS. Ya no hay ninguna lectura de mesa desde
+     `descripcion`.
+  2. **Se ve y se edita.** La pre-cuenta muestra Adicional 1 (mesa),
+     Adicional 2 (mesero) y la Descripción de solo lectura. `POST /lab/adicional`
+     los guarda; el servidor devuelve la clasificación y la pantalla la muestra
+     como chip: "Mesa 4 · cuenta «Sofi»", "Delivery" o "Sin mesa".
+  3. **Nada se esconde.** `/state` ya no filtra por `descripcion` y la columna
+     de mesas tiene una sección "Sin mesa" para las cuentas cuyo `adicional1`
+     no es una mesa. Escribir "para llevar" saca la cuenta de la mesa y la deja
+     ahí, visible — antes habría desaparecido de la pantalla.
+  4. **La `bridge-check` corre la v5 real**, copiada literal de
+     `mesita-app/apps/mesita-caja/src/queries.js` (QUERY_REVISION=7) con sus dos
+     respaldos, e informa con qué nivel quedaría conectado el POS. También lee
+     el catálogo `adicional` y lo muestra como prueba de que la mesa es
+     `adicional1` en ESTE install, en vez de asumirlo.
+  5. **Los documentos se identifican por `localId`**, no por el texto de la
+     mesa: `adicional1` es editable y repetible (cuentas divididas "4" y
+     "4 Sofi"), así que como llave se rompía. Se fue de paso la cola optimista
+     de `/agregar`, que ya no hace falta porque los platos solo viajan en
+     `Guardar cambios` con un `localId` explícito.
+- **Ojo:** `mesaClassifier.js` es una COPIA de
+  `mesita-app/src/modules/pos/bridge/mesa-classifier.ts`. Si allá cambian las
+  reglas hay que traerlas acá o el lab mostrará una mesa donde el restaurante
+  no verá ninguna; `tests/mesa-classifier.test.js` fija los casos del piloto.
 
 ### 2026-07-30 — La fachada v2 ahora imita a Contífico exactamente (4 divergencias)
 - **Qué:** `src/api/v2/serializers.js`, `src/api/v2/documento.js`, `tests/v2-facade.test.js` (26 → 31 tests) y los fixtures de `tests/contract/fixtures/` sincronizados desde mesita-app.

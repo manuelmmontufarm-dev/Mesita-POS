@@ -34,6 +34,36 @@
   .hint { color: var(--ink-mut); font-size: .88rem; padding: 10px 2px 16px; }
   [hidden] { display: none !important; }   /* .pill-doc trae display:inline-block */
 
+  /* ── campos "adicionales" del header de la factura ──
+     adicional1 es LA MESA en Contífico (catálogo `adicional`: id=1 'mesa',
+     id=2 'mesero'). Es texto libre y el mesero lo corrige a mano, así que acá
+     se edita igual que en el POS. */
+  .adic { padding: 12px 16px 14px; border-bottom: 1px solid var(--line); display: grid; gap: 9px; }
+  .adic .arow { display: grid; grid-template-columns: 96px 1fr; align-items: center; gap: 10px; }
+  .adic label { font-size: .76rem; font-weight: 700; color: var(--ink-mut); text-transform: uppercase; letter-spacing: .04em; }
+  .adic input { width: 100%; font: inherit; font-size: .92rem; font-weight: 650; padding: 7px 10px;
+                border: 1px solid var(--line); border-radius: var(--r-sm, 8px); background: var(--surface); color: var(--ink); }
+  .adic input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft, rgba(0,0,0,.06)); }
+  .adic input:disabled { background: var(--muted-surf); color: var(--ink-mut); }
+  .adic .arow.ro span { font-size: .82rem; color: var(--ink-mut); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .adic .afoot { display: flex; align-items: center; gap: 9px; justify-content: space-between; }
+  .kind { font-size: .78rem; font-weight: 700; padding: 2px 9px; border-radius: 999px; }
+  .kind.MESA { background: var(--ok-soft); color: #4A7A1E; }
+  .kind.DELIVERY { background: var(--warn-soft); color: #B97A14; }
+  .kind.SIN_MESA { background: var(--bad-soft); color: var(--bad); }
+
+  /* Documentos abiertos que NO caen en ninguna mesa. Nunca se esconden: */
+  .nomesa { margin-top: 18px; }
+  .nomesa .ncard { width: 100%; text-align: left; border: 1px dashed var(--line); border-radius: var(--r-md);
+                   background: var(--surface); padding: 10px 13px; display: grid; gap: 2px; margin-bottom: 8px; cursor: pointer; }
+  .nomesa .ncard.sel { border-style: solid; border-color: var(--brand); box-shadow: 0 0 0 1px var(--brand); }
+  .nomesa .ncard b { font-size: .9rem; }
+  .nomesa .ncard small { font-size: .76rem; color: var(--ink-mut); }
+  .subdocs { display: grid; gap: 6px; margin: 6px 0 2px; }
+  .subdocs button { text-align: left; font: inherit; font-size: .8rem; padding: 6px 10px; border-radius: 8px;
+                    border: 1px solid var(--line); background: var(--surface); cursor: pointer; }
+  .subdocs button.sel { border-color: var(--brand); box-shadow: 0 0 0 1px var(--brand); }
+
   /* línea pendiente de confirmar por el servidor (optimista) */
   .li.pend { opacity: .55; }
   .li.pend .lp::after { content: " ⏳"; font-size: .7em; }
@@ -78,6 +108,11 @@
   <section class="lab-col">
     <div class="zone-h"><span class="nm">Mesas</span><span class="ct" id="ctAbiertas">0</span><span class="ln"></span></div>
     <div class="tables" id="mesas"></div>
+    <div class="nomesa" id="nomesaWrap" hidden>
+      <div class="zone-h"><span class="nm">Sin mesa</span><span class="ct" id="ctSinMesa">0</span><span class="ln"></span></div>
+      <div class="hint" style="padding:6px 2px 10px">Cuentas abiertas cuyo Adicional 1 no es una mesa. El Bridge las ve, pero no les da QR.</div>
+      <div id="nomesa"></div>
+    </div>
   </section>
 
   <!-- Platos -->
@@ -94,6 +129,24 @@
         <div class="bt">Pre-cuenta <span class="pill-doc PRE" id="secuencia" hidden></span></div>
         <div class="bsub" id="mesaSel">Ninguna mesa seleccionada</div>
       </div>
+      <form class="adic" id="adicForm">
+        <div class="arow">
+          <label for="adic1">Adicional 1</label>
+          <input id="adic1" maxlength="300" placeholder="mesa — ej: 4" autocomplete="off" />
+        </div>
+        <div class="arow">
+          <label for="adic2">Adicional 2</label>
+          <input id="adic2" maxlength="300" placeholder="mesero — ej: Sofía" autocomplete="off" />
+        </div>
+        <div class="arow ro">
+          <label>Descripción</label>
+          <span id="descripcion">—</span>
+        </div>
+        <div class="afoot">
+          <span id="adicHint" class="hint" style="padding:0">Elige una cuenta para ver su campo de mesa.</span>
+          <button type="submit" class="btn btn-outline btn-sm" id="btnAdic">Guardar mesa</button>
+        </div>
+      </form>
       <div class="acts">
         <button class="btn btn-primary btn-sm" id="btnPre">Pre-Cuenta</button>
         <button class="btn btn-primary btn-sm" id="btnSave">Guardar cambios</button>
@@ -118,15 +171,24 @@ const PRODUCTOS = [
   ["☕","Café pasado",1.50], ["🍰","Tres leches",4.50], ["🍨","Helado de paila",3.75],
 ];
 const $ = (id) => document.getElementById(id);
-let sel = null, estado = { mesas: [] };
-let inflight = 0;          // ops optimistas sin confirmar → el poll no pisa la UI
+/* Un DOCUMENTO es la unidad, no la mesa: en Contífico la mesa es solo el texto
+   que el mesero escribió en `adicional1`, y puede cambiar, repetirse (cuentas
+   divididas: "4" y "4 Sofi") o no ser una mesa ("para llevar"). Por eso todo se
+   selecciona y se guarda por `localId`. */
+let estado = { documentos: [] };
+let selId = null;          // documento seleccionado (idfactura_cabecera)
+let selMesa = null;        // mesa marcada aunque esté libre (para Pre-Cuenta)
 let tmpId = -1;            // ids locales para líneas aún no confirmadas
-const dirtyMesas = new Set(); // borradores: Contífico aún no los guardó en MySQL
-let savingMesa = null;
+const dirtyDocs = new Set(); // borradores: Contífico aún no los guardó en MySQL
+let savingDoc = null;
+let adicSucio = false;     // el usuario está escribiendo en los adicionales
 
 const money = (n) => "$" + n.toFixed(2);
 const r2 = (n) => Math.round(n * 100) / 100;
-const abierta = (m) => estado.mesas.find((x) => x.mesa === m) || null;
+const doc = (id) => estado.documentos.find((d) => d.localId === id) || null;
+const docsDeMesa = (n) => estado.documentos.filter((d) => d.kind === "MESA" && d.mesaNumber === n);
+const docsSinMesa = () => estado.documentos.filter((d) => d.kind !== "MESA");
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
 function toast(msg, kind = "ok", emoji = "✓") {
   const t = document.createElement("div");
@@ -147,7 +209,7 @@ async function api(path, body) {
   return j;
 }
 
-/* Recalcular totales locales de una mesa (mismo modelo que el servidor). */
+/* Recalcular totales locales de un documento (mismo modelo que el servidor). */
 function recalc(m) {
   m.subtotal = r2(m.items.reduce((s, i) => s + i.precio * i.cantidad, 0));
   m.iva = r2(m.subtotal * 0.15);
@@ -155,39 +217,53 @@ function recalc(m) {
   m.total = r2(m.subtotal + m.iva + m.servicio);
 }
 
-/* Toda op es OPTIMISTA: muta el estado local YA, pinta YA, y sincroniza
-   detrás. El sync va por una COLA secuencial — si dos taps salieran en
-   paralelo, el /agregar podría correr antes de que el /precuenta committee
-   (nos pasó: se perdían platos). La UI nunca espera; el servidor va en orden. */
-let cola = Promise.resolve();
-function optimista(mutar, sync) {
-  mutar();
-  pintar();
-  inflight++;
-  cola = cola
-    .then(sync)
-    .catch((e) => { toast(e.message, "bad", "✕"); })
-    .finally(async () => {
-      inflight--;
-      if (inflight === 0) await refrescar(true);
-    });
-}
+/* Cómo se lee la clasificación que hizo el servidor sobre `adicional1`. */
+const KIND_TXT = {
+  MESA: (d) => `Mesa ${d.mesaNumber}${d.billLabel ? ` · cuenta «${d.billLabel}»` : ""}`,
+  DELIVERY: () => "Delivery (contador diario, no es una mesa)",
+  SIN_MESA: (d) => d.motivo === "empty" ? "Sin mesa (campo vacío)" : "Sin mesa",
+};
 
 function pintar() {
-  const a = sel ? abierta(sel) : null;
-  const dirty = !!sel && dirtyMesas.has(sel);
-  const saving = !!sel && savingMesa === sel;
-  $("ctAbiertas").textContent = `${estado.mesas.length} abierta${estado.mesas.length === 1 ? "" : "s"}`;
+  const a = doc(selId);
+  const dirty = !!a && dirtyDocs.has(a.localId);
+  const saving = !!a && savingDoc === a.localId;
+  $("ctAbiertas").textContent = `${estado.documentos.length} abierta${estado.documentos.length === 1 ? "" : "s"}`;
 
-  $("mesas").innerHTML = MESAS.map((m) => {
-    const o = abierta(m);
-    return `<button class="tcard ${o ? "abierta" : ""} ${sel === m ? "sel" : ""}" data-m="${m}">
+  /* Mesas: una tarjeta por mesa física. Si una mesa tiene más de una cuenta
+     abierta (cuentas divididas) se listan todas — ninguna se esconde. */
+  $("mesas").innerHTML = MESAS.map((m, i) => {
+    const n = i + 1;
+    const ds = docsDeMesa(n);
+    const activa = ds.some((d) => d.localId === selId);
+    const cab = `<button class="tcard ${ds.length ? "abierta" : ""} ${activa || (!ds.length && selMesa === n) ? "sel" : ""}" data-m="${n}">
       <span class="tn">${m}</span>
-      <span class="ts">${o ? `${o.secuencia} · ${money(o.total)}` : "Libre"}</span>
+      <span class="ts">${ds.length ? (ds.length > 1 ? `${ds.length} cuentas · ${money(ds.reduce((s, d) => s + d.total, 0))}` : `${ds[0].secuencia} · ${money(ds[0].total)}`) : "Libre"}</span>
     </button>`;
+    if (ds.length < 2) return cab;
+    return cab + `<div class="subdocs">${ds.map((d) => `<button class="${d.localId === selId ? "sel" : ""}" data-d="${d.localId}">
+      ${esc(d.adicional1)} · ${d.secuencia} · ${money(d.total)}</button>`).join("")}</div>`;
   }).join("");
   document.querySelectorAll(".tcard").forEach((b) =>
-    b.addEventListener("click", () => { sel = b.dataset.m; pintar(); }));
+    b.addEventListener("click", () => {
+      const n = Number(b.dataset.m);
+      selMesa = n;
+      selId = (docsDeMesa(n)[0] || {}).localId || null;
+      adicSucio = false;
+      pintar();
+    }));
+
+  /* Cuentas abiertas que no son de ninguna mesa: delivery, "para llevar",
+     campo vacío. Se muestran aparte porque el POS las tiene abiertas igual. */
+  const sinMesa = docsSinMesa();
+  $("nomesaWrap").hidden = sinMesa.length === 0;
+  $("ctSinMesa").textContent = String(sinMesa.length);
+  $("nomesa").innerHTML = sinMesa.map((d) => `<button class="ncard ${d.localId === selId ? "sel" : ""}" data-d="${d.localId}">
+      <b>${d.adicional1 ? esc(d.adicional1) : "(Adicional 1 vacío)"}</b>
+      <small>${d.secuencia} · ${money(d.total)} · ${KIND_TXT[d.kind](d)}</small>
+    </button>`).join("");
+  document.querySelectorAll("[data-d]").forEach((b) =>
+    b.addEventListener("click", () => { selId = b.dataset.d; selMesa = null; adicSucio = false; pintar(); }));
 
   $("prodHint").style.display = a ? "none" : "block";
   $("prods").innerHTML = PRODUCTOS.map(([ic, n, p], i) =>
@@ -197,16 +273,31 @@ function pintar() {
   document.querySelectorAll(".pcard").forEach((b) =>
     b.addEventListener("click", () => agregar(Number(b.dataset.i))));
 
-  $("mesaSel").textContent = sel
-    ? (a ? `${sel} · ${saving ? "guardando en MySQL…" : dirty ? "cambios sin guardar" : "guardado en MySQL"}` : `${sel} · sin pre-cuenta`)
-    : "Ninguna mesa seleccionada";
+  $("mesaSel").textContent = a
+    ? `${KIND_TXT[a.kind](a)} · ${saving ? "guardando en MySQL…" : dirty ? "cambios sin guardar" : "guardado en MySQL"}`
+    : (selMesa ? `Mesa ${selMesa} · sin pre-cuenta` : "Ninguna cuenta seleccionada");
   const secu = $("secuencia");
   secu.hidden = !a; if (a) secu.textContent = a.secuencia;
-  $("btnPre").disabled = !sel || !!a || inflight > 0 || saving;
-  $("btnSave").disabled = !a || !dirty || inflight > 0 || saving;
+
+  /* Los adicionales del header. No se pisa lo que el usuario está tecleando. */
+  if (!adicSucio) {
+    $("adic1").value = a ? a.adicional1 : "";
+    $("adic2").value = a ? a.adicional2 : "";
+  }
+  $("adic1").disabled = !a; $("adic2").disabled = !a;
+  $("descripcion").textContent = a ? (a.descripcion || "—") : "—";
+  $("btnAdic").disabled = !a || saving;
+  $("adicHint").innerHTML = a
+    ? (adicSucio
+        ? "Sin guardar — el Bridge sigue viendo el valor anterior."
+        : `<span class="kind ${a.kind}">${KIND_TXT[a.kind](a)}</span>`)
+    : "Elige una cuenta para ver su campo de mesa.";
+
+  $("btnPre").disabled = !selMesa || saving;
+  $("btnSave").disabled = !a || !dirty || saving;
   $("btnSave").textContent = saving ? "Guardando…" : dirty ? "Guardar cambios" : "Guardado ✓";
-  $("btnFac").disabled = !a || !a.items.length || inflight > 0 || saving;
-  $("btnAnu").disabled = !a || inflight > 0 || saving;
+  $("btnFac").disabled = !a || !a.items.length || saving;
+  $("btnAnu").disabled = !a || saving;
 
   $("lineas").innerHTML = a && a.items.length
     ? a.items.map((i) => `<div class="li ${i.lineaId < 0 ? "pend" : ""}">
@@ -228,20 +319,24 @@ function pintar() {
     <div class="tr grand"><span>Total</span><span class="tnum">${money(a.total)}</span></div>` : "";
 }
 
-async function refrescar(force = false) {
-  if (inflight > 0 && !force) { pintar(); return; }  // no pisar la UI optimista
+async function refrescar() {
   try {
     const fresh = await api("/state");
     // Un poll puede llegar mientras el mesero arma un borrador. Preservamos
-    // esas líneas locales hasta Guardar; el resto de mesas sí se refresca.
+    // esas líneas locales hasta Guardar; el resto de cuentas sí se refresca.
     const drafts = new Map(
-      estado.mesas.filter((m) => dirtyMesas.has(m.mesa)).map((m) => [m.mesa, m]),
+      estado.documentos.filter((d) => dirtyDocs.has(d.localId)).map((d) => [d.localId, d]),
     );
-    fresh.mesas = fresh.mesas.map((m) => drafts.get(m.mesa) || m);
-    for (const [mesa, draft] of drafts) {
-      if (!fresh.mesas.some((m) => m.mesa === mesa)) fresh.mesas.push(draft);
-    }
+    fresh.documentos = fresh.documentos.map((d) => {
+      const draft = drafts.get(d.localId);
+      if (!draft) return d;
+      // Los adicionales SÍ se refrescan aunque haya borrador de platos: el
+      // campo mesa se guarda solo, sin pasar por "Guardar cambios".
+      return { ...draft, adicional1: d.adicional1, adicional2: d.adicional2, descripcion: d.descripcion,
+               kind: d.kind, mesaNumber: d.mesaNumber, billLabel: d.billLabel, motivo: d.motivo };
+    });
     estado = fresh;
+    if (selId && !doc(selId)) selId = null;   // la cerraron o anularon desde otro lado
     $("conn").textContent = "MySQL pos_contifico · en línea";
     $("conn").style.color = "";
   } catch {
@@ -251,91 +346,116 @@ async function refrescar(force = false) {
   pintar();
 }
 
-/* ── acciones (instantáneas) ── */
+/* ── acciones ── */
 function agregar(i) {
-  if (!sel) return;
+  const m = doc(selId); if (!m) return;
   const [, nombre, precio] = PRODUCTOS[i];
-  const mesa = sel;
-  const m = abierta(mesa); if (!m) return;
   const linea = m.items.find((x) => x.nombre === nombre && x.precio === precio);
   if (linea) linea.cantidad += 1;
   else m.items.push({ lineaId: tmpId--, nombre, precio, cantidad: 1 });
   recalc(m);
-  dirtyMesas.add(mesa);
+  dirtyDocs.add(m.localId);
   pintar();
 }
 
 function quitar(lineaId) {
-  const mesa = sel;
-  const m = abierta(mesa); if (!m) return;
+  const m = doc(selId); if (!m) return;
   m.items = m.items.filter((x) => x.lineaId !== lineaId);
   recalc(m);
-  dirtyMesas.add(mesa);
+  dirtyDocs.add(m.localId);
   pintar();
 }
 
-async function guardarMesa(mesa, { quiet = false } = {}) {
-  const m = abierta(mesa);
-  if (!m) throw new Error("No hay pre-cuenta abierta en esa mesa");
+async function guardarDoc(localId, { quiet = false } = {}) {
+  const m = doc(localId);
+  if (!m) throw new Error("No hay una pre-cuenta abierta con ese id");
   const items = m.items.map(({ nombre, precio, cantidad }) => ({ nombre, precio, cantidad }));
-  savingMesa = mesa;
+  savingDoc = localId;
   pintar();
   try {
-    const r = await api("/guardar", { mesa, items });
-    dirtyMesas.delete(mesa);
-    await refrescar(true);
-    if (!quiet) toast(`${mesa} guardada en MySQL · ${money(r.total)} · el Bridge ya puede leerla`, "mqr", "💾");
+    const r = await api("/guardar", { localId, items });
+    dirtyDocs.delete(localId);
+    savingDoc = null;
+    await refrescar();
+    if (!quiet) toast(`Cuenta guardada en MySQL · ${money(r.total)} · el Bridge ya puede leerla`, "mqr", "💾");
     return r;
   } finally {
-    savingMesa = null;
+    savingDoc = null;
     pintar();
   }
 }
 
 $("btnSave").addEventListener("click", async () => {
-  if (!sel || !dirtyMesas.has(sel)) return;
-  try { await guardarMesa(sel); }
+  if (!selId || !dirtyDocs.has(selId)) return;
+  try { await guardarDoc(selId); }
   catch (e) { toast(e.message, "bad", "✕"); }
 });
 
-$("btnPre").addEventListener("click", () => {
-  const mesa = sel;
-  optimista(() => {
-    estado.mesas.push({ mesa, secuencia: "PRE-…", total: 0, subtotal: 0, iva: 0, servicio: 0, items: [] });
-  }, async () => {
-    const r = await api("/precuenta", { mesa });
-    toast(`Pre-cuenta ${r.secuencia} abierta — ya la ve el Bridge`, "mqr", "🧾");
-  });
+/* Editar el campo "mesa" del documento — `adicional1` — como en el POS real. */
+["adic1", "adic2"].forEach((id) =>
+  $(id).addEventListener("input", () => { adicSucio = true; pintar(); }));
+
+$("adicForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if (!selId) return;
+  const localId = selId;
+  try {
+    const r = await api("/adicional", { localId, adicional1: $("adic1").value, adicional2: $("adic2").value });
+    adicSucio = false;
+    await refrescar();
+    toast(
+      r.kind === "MESA"
+        ? `Adicional 1 = «${r.adicional1}» → Mesa ${r.mesaNumber}${r.billLabel ? ` · «${r.billLabel}»` : ""}`
+        : `Adicional 1 = «${r.adicional1}» → ${r.kind === "DELIVERY" ? "delivery" : "sin mesa"}: no recibe QR`,
+      r.kind === "MESA" ? "mqr" : "bad",
+      r.kind === "MESA" ? "🪑" : "⚠",
+    );
+  } catch (err) { toast(err.message, "bad", "✕"); }
 });
 
-$("btnFac").addEventListener("click", () => {
-  const mesa = sel;
-  (async () => {
-    try {
-      if (dirtyMesas.has(mesa)) await guardarMesa(mesa, { quiet: true });
-      const total = abierta(mesa)?.total ?? 0;
-      savingMesa = mesa; pintar();
-      const r = await api("/facturar", { mesa, formaPago: "TC" });
-      dirtyMesas.delete(mesa);
-      await refrescar(true);
-      toast(`Facturado ${r.documento} · ${money(r.total ?? total)} — P→C, sale del Bridge`, "ok", "✓");
-    } catch (e) {
-      toast(e.message, "bad", "✕");
-    } finally {
-      savingMesa = null; pintar();
-    }
-  })();
+$("btnPre").addEventListener("click", async () => {
+  const mesa = selMesa;
+  if (!mesa) return;
+  try {
+    // La mesa entra por `adicional1` con el número pelado, como la teclea el
+    // mesero en el POS del piloto.
+    const r = await api("/precuenta", { mesa: `Mesa ${mesa}` });
+    await refrescar();
+    selId = r.localId;
+    adicSucio = false;
+    pintar();
+    toast(`Pre-cuenta ${r.secuencia} abierta · Adicional 1 = «${r.adicional1}»`, "mqr", "🧾");
+  } catch (e) { toast(e.message, "bad", "✕"); }
 });
 
-$("btnAnu").addEventListener("click", () => {
-  const mesa = sel;
-  optimista(() => {
-    dirtyMesas.delete(mesa);
-    estado.mesas = estado.mesas.filter((m) => m.mesa !== mesa);
-  }, async () => {
-    await api("/anular", { mesa });
+$("btnFac").addEventListener("click", async () => {
+  const localId = selId;
+  if (!localId) return;
+  try {
+    if (dirtyDocs.has(localId)) await guardarDoc(localId, { quiet: true });
+    const total = doc(localId)?.total ?? 0;
+    savingDoc = localId; pintar();
+    const r = await api("/facturar", { localId, formaPago: "TC" });
+    dirtyDocs.delete(localId);
+    savingDoc = null;
+    await refrescar();
+    toast(`Facturado ${r.documento} · ${money(r.total ?? total)} — P→C, sale del Bridge`, "ok", "✓");
+  } catch (e) {
+    toast(e.message, "bad", "✕");
+  } finally {
+    savingDoc = null; pintar();
+  }
+});
+
+$("btnAnu").addEventListener("click", async () => {
+  const localId = selId;
+  if (!localId) return;
+  try {
+    await api("/anular", { localId });
+    dirtyDocs.delete(localId);
+    await refrescar();
     toast("Pre-cuenta anulada (estado A)", "bad", "⊘");
-  });
+  } catch (e) { toast(e.message, "bad", "✕"); }
 });
 
 /* ── panel Verificar Bridge: todo lo necesario para conectar el puente ── */
@@ -356,7 +476,8 @@ $("btnBridge").addEventListener("click", async () => {
       ${box(c.mysql ? "ok" : "bad", "MySQL del POS alcanzable", c.mysql ? `Conectado a ${r.conn.host}:${r.conn.port}` : "No responde — ¿está corriendo el MySQL en 3307?")}
       ${box(c.schema ? "ok" : "bad", "Esquema pos_contifico presente", c.schema ? "factura_cabecera, factura_detalle e inventario_producto existen." : "Faltan tablas — carga init/01-schema.sql")}
       ${box(c.readOnly ? "ok" : "bad", "Usuario mesita_ro SOLO lectura", c.readOnly ? "Un DELETE fue denegado — el Bridge no puede escribir jamás." : "¡El usuario puede escribir! Revisa los GRANT.")}
-      ${box(c.query ? "ok" : "bad", "Query del agente funciona", c.query ? `${r.precuentas.length} pre-cuenta(s) visibles ahora: ${r.precuentas.map((p) => `${p.mesa} (${money(Number(p.totalCents ?? p.total))})`).join(", ") || "ninguna abierta"}` : "La query exacta del agente falló.")}
+      ${box(c.query ? "ok" : "bad", `Query del agente funciona${r.query.level ? ` (respaldo nivel ${r.query.level})` : ""}`, c.query ? `${r.query.reason ? r.query.reason + ". " : "Corre la v5 completa. "}${r.precuentas.length} pre-cuenta(s) visibles ahora: ${r.precuentas.map((p) => `«${p.adicional1 || "vacío"}» → ${p.kind === "MESA" ? "Mesa " + p.mesaNumber : p.kind === "DELIVERY" ? "delivery" : "sin mesa"} (${money(Number(p.total))})`).join(", ") || "ninguna abierta"}` : "La query exacta del agente falló.")}
+      ${box(c.adicional ? "ok" : "bad", "El POS declara el campo «mesa»", c.adicional ? `Catálogo adicional: ${r.adicionalCatalog.map((x) => `${x.id}=${x.nombre}`).join(", ")} — la mesa es adicional1.` : "Falta el adicional «mesa»: hay que crearlo en Configuración → Adicionales del Contífico.")}
       <div class="bconn">
         <b style="font-size:.8rem">Todos los datos del asistente de Mesita Caja</b>
         <div class="row2"><span>Launcher.exe.config</span><code>${r.launcher.configPath || "Disponible para descargar"}</code></div>
